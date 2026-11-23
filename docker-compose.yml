@@ -13,13 +13,19 @@ services:
       KUND_DIR: /kund
       PROJEKT_DIR: /projekt
       DATA_DIR: /data
+      # Inloggning via Entra ID – fylls i i .env (se .env.example). Tomt = ingen inloggning.
+      APP_URL: ${APP_URL:-}
+      ENTRA_TENANT_ID: ${ENTRA_TENANT_ID:-}
+      ENTRA_CLIENT_ID: ${ENTRA_CLIENT_ID:-}
+      ENTRA_CLIENT_SECRET: ${ENTRA_CLIENT_SECRET:-}
+      SESSION_SECRET: ${SESSION_SECRET:-}
     volumes:
       - ./Underlag:/underlag:ro
       - ./Kundundersökning:/kund:ro
       - ./Projekt:/projekt:ro
       - portfoljdata:/data
     ports:
-      # Appen saknar inloggning. Sätt BIND_ADDRESS=127.0.0.1 i .env för att bara nå den från servern.
+      # Utan Entra ID-inställningar saknar appen inloggning. Sätt BIND_ADDRESS=127.0.0.1 i .env för att bara nå den från servern.
       - "${BIND_ADDRESS:-0.0.0.0}:8405:8405"
     restart: unless-stopped
 

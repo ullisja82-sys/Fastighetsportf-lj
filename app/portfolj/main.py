@@ -13,7 +13,7 @@ from fastapi.templating import Jinja2Templates
 from openpyxl import Workbook
 from openpyxl.styles import Font
 
-from . import invanalys, invdiagram, investering, investeringsplan_data, kund, lagring, modell, plats, projekt
+from . import inloggning, invanalys, invdiagram, investering, investeringsplan_data, kund, lagring, modell, plats, projekt
 from .importera import STAMFALT, las_underlag
 
 HAR = os.path.dirname(__file__)
@@ -22,6 +22,9 @@ UNDERLAG_DIR = os.environ.get("UNDERLAG_DIR", "./Underlag")
 app = FastAPI(title="HFAB Fastighetsportfölj", docs_url=None, redoc_url=None)
 app.mount("/static", StaticFiles(directory=os.path.join(HAR, "static")), name="static")
 mallar = Jinja2Templates(directory=os.path.join(HAR, "templates"))
+if inloggning.pa():
+    app.middleware("http")(inloggning.krav_inloggning)
+    app.include_router(inloggning.router)
 
 KUND_DIR = os.environ.get("KUND_DIR", "./Kundundersökning")
 _underlag = las_underlag(UNDERLAG_DIR)

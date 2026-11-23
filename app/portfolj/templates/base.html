@@ -50,7 +50,8 @@
       <a href="/underlag" class="{{ 'aktiv' if nav == 'underlag' }}" {% if nav == 'underlag' %}aria-current="page"{% endif %}>
         <svg viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 13h7M9 17h7"/></svg><span class="text">Underlag och datakvalitet</span></a>
     </nav>
-    <div class="sidomeny-fot">Prototyp. Belopp i tkr där inget annat anges.</div>
+    <div class="sidomeny-fot">Prototyp. Belopp i tkr där inget annat anges.
+      {% if request.state.anvandare is defined %}<br>{{ request.state.anvandare.namn }} · <a href="/logga-ut">Logga ut</a>{% endif %}</div>
   </aside>
 
   <main class="innehall">

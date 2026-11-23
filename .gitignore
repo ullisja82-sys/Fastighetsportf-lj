@@ -3,3 +3,4 @@ __pycache__/
 *.xlsx
 *.xls
 app/portfolj/investeringsplan_data.py
+!.env.example

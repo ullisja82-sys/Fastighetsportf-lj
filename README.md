@@ -9,8 +9,18 @@ som bestäms av fastighetens ålder. Bygger på rapporten Fastighetsanalys (samm
 docker compose up -d --build      # http://<server>:8405
 ```
 
-Appen saknar inloggning och nås som standard från det interna nätverket. Sätt `BIND_ADDRESS=127.0.0.1`
-i `.env` för att bara nå den från servern.
+Adress: **https://fastighetsportfolj.hfab.se** (HTTPS-proxyn i `hfab-drift/portal` på servern skickar vidare till port 8405).
+
+## Inloggning via Entra ID
+
+Kopiera `.env.example` till `.env` och fyll i `ENTRA_TENANT_ID`, `ENTRA_CLIENT_ID`, `ENTRA_CLIENT_SECRET`,
+`SESSION_SECRET` och `APP_URL`; kör sedan `docker compose up -d`. Då kräver alla sidor inloggning (OpenID Connect,
+auktoriseringskod med PKCE, samma flöde som Styrning men utan roller). Vem som får logga in styrs i Entra ID:
+företagsappen med *Tilldelning krävs* och tilldelade användare/grupper. Utan inställningarna saknar appen inloggning.
+
+Appregistreringen: plattform *Webb*, omdirigerings-URI `https://fastighetsportfolj.hfab.se/auth/callback`,
+utloggnings-URL `https://fastighetsportfolj.hfab.se/utloggad`, delegerade behörigheter `openid`, `profile`, `email`.
+Sessionen gäller 10 timmar (`SESSION_TIMMAR`).
 
 ## Underlag
 
