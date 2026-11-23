@@ -19,6 +19,7 @@ services:
       ENTRA_CLIENT_ID: ${ENTRA_CLIENT_ID:-}
       ENTRA_CLIENT_SECRET: ${ENTRA_CLIENT_SECRET:-}
       SESSION_SECRET: ${SESSION_SECRET:-}
+      ADMIN_EPOST: ${ADMIN_EPOST:-}
     volumes:
       - ./Underlag:/underlag:ro
       - ./Kundundersökning:/kund:ro

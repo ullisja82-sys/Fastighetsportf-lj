@@ -184,3 +184,15 @@
   document.querySelectorAll('[data-valj-status]').forEach(a => a.addEventListener('click', () => { status.value = a.dataset.valjStatus; passerat.checked = false; filtrera(); }));
   filtrera();
 })();
+
+
+// Läsbehörighet: formulär som sparar något stängs av (servern nekar ändå).
+if (document.body.hasAttribute("data-endast-las")) {
+  document.querySelectorAll('form[method="post"]').forEach(function (f) {
+    f.querySelectorAll("input, select, textarea, button").forEach(function (el) { el.disabled = true; });
+    var not = document.createElement("p");
+    not.className = "mini dampad";
+    not.textContent = "Du har läsbehörighet och kan inte ändra här.";
+    f.appendChild(not);
+  });
+}

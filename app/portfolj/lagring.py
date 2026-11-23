@@ -29,6 +29,8 @@ def _anslut():
     con.execute("CREATE TABLE IF NOT EXISTS kundkoppling (enhet TEXT PRIMARY KEY, kod TEXT NOT NULL)")
     con.execute("CREATE TABLE IF NOT EXISTS plats (kod TEXT PRIMARY KEY, adress TEXT, egen INTEGER NOT NULL DEFAULT 0, lat REAL, lon REAL)")
     con.execute("CREATE TABLE IF NOT EXISTS invplats (kod TEXT PRIMARY KEY, koder TEXT, adress TEXT, egen INTEGER NOT NULL DEFAULT 0, lat REAL, lon REAL)")
+    con.execute("CREATE TABLE IF NOT EXISTS anvandare (oid TEXT PRIMARY KEY, namn TEXT, epost TEXT, roll TEXT NOT NULL, "
+                "forst_inloggad TEXT, senast_inloggad TEXT, roll_andrad TEXT)")
     return con
 
 
@@ -109,3 +111,54 @@ def spara_invplats(kod: str, **falt) -> None:
         for namn, varde in falt.items():
             if namn in ("koder", "adress", "egen", "lat", "lon"):
                 con.execute(f"UPDATE invplats SET {namn} = ? WHERE kod = ?", (varde, kod))
+
+
+# --- Användare och behörigheter (bara när inloggning via Entra ID är på) ------------------------------
+ROLLER = {"ingen": "Ingen åtkomst", "lasare": "Läsare", "redigerare": "Redigerare", "admin": "Administratör"}
+ROLLFORKLARING = {
+    "ingen": "Har loggat in men väntar på att få behörighet. Ser ingenting.",
+    "lasare": "Ser alla sidor och kan exportera till Excel, men ändrar ingenting.",
+    "redigerare": "Som läsare, och kan dessutom ändra krav, byggår, anteckningar, kopplingar och läsa in underlagen på nytt.",
+    "admin": "Som redigerare, och delar dessutom ut behörigheter till andra.",
+}
+
+
+def _nu() -> str:
+    return datetime.now().strftime("%Y-%m-%d %H:%M")
+
+
+def anvandare(oid: str) -> dict | None:
+    with _anslut() as con:
+        rad = con.execute("SELECT * FROM anvandare WHERE oid = ?", (oid,)).fetchone()
+    return dict(rad) if rad else None
+
+
+def alla_anvandare() -> list[dict]:
+    with _anslut() as con:
+        return [dict(r) for r in con.execute("SELECT * FROM anvandare ORDER BY roll = 'ingen' DESC, lower(namn)")]
+
+
+def registrera_inloggning(oid: str, namn: str, epost: str, fast_admin: bool) -> dict:
+    """Sparar/uppdaterar personen vid inloggning. Nya personer får Ingen åtkomst tills en administratör ger behörighet."""
+    with _anslut() as con:
+        finns = con.execute("SELECT roll FROM anvandare WHERE oid = ?", (oid,)).fetchone()
+        roll = "admin" if fast_admin else (finns["roll"] if finns else "ingen")
+        if finns:
+            con.execute("UPDATE anvandare SET namn = ?, epost = ?, roll = ?, senast_inloggad = ? WHERE oid = ?",
+                        (namn, epost, roll, _nu(), oid))
+        else:
+            con.execute("INSERT INTO anvandare (oid, namn, epost, roll, forst_inloggad, senast_inloggad) VALUES (?, ?, ?, ?, ?, ?)",
+                        (oid, namn, epost, roll, _nu(), _nu()))
+    return anvandare(oid)
+
+
+def satt_roll(oid: str, roll: str) -> None:
+    if roll not in ROLLER:
+        raise ValueError("Okänd behörighet")
+    with _anslut() as con:
+        con.execute("UPDATE anvandare SET roll = ?, roll_andrad = ? WHERE oid = ?", (roll, _nu(), oid))
+
+
+def ta_bort_anvandare(oid: str) -> None:
+    with _anslut() as con:
+        con.execute("DELETE FROM anvandare WHERE oid = ?", (oid,))

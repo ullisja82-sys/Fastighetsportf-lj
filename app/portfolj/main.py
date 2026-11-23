@@ -381,6 +381,37 @@ async def spara_kundkoppling(request: Request):
     return RedirectResponse("/underlag?last=1#kundundersokning", status_code=303)
 
 
+@app.get("/anvandare")
+def anvandare_sida(request: Request, sparat: int = 0):
+    """Administratören delar ut behörigheter (sidan finns bara när inloggning via Entra ID är på)."""
+    if not inloggning.pa():
+        raise HTTPException(404)
+    return _visa(request, "anvandare.html", _ar(request, None), dolj_arsval=True, anvandare=lagring.alla_anvandare(),
+                 ROLLER=lagring.ROLLER, ROLLFORKLARING=lagring.ROLLFORKLARING, sparat=sparat,
+                 fasta=[a["oid"] for a in lagring.alla_anvandare() if inloggning.fast_admin(a["epost"])])
+
+
+@app.post("/anvandare")
+def spara_anvandare(request: Request, oid: str = Form(...), roll: str = Form(""), ta_bort: str = Form("")):
+    if not inloggning.pa():
+        raise HTTPException(404)
+    anv = lagring.anvandare(oid)
+    if anv is None:
+        raise HTTPException(404, "Okänd användare")
+    if inloggning.fast_admin(anv["epost"]):
+        raise HTTPException(400, "Fasta administratörer (ADMIN_EPOST) kan inte ändras här")
+    if oid == request.state.anvandare["oid"]:
+        raise HTTPException(400, "Du kan inte ändra din egen behörighet")
+    if ta_bort:
+        lagring.ta_bort_anvandare(oid)
+    else:
+        try:
+            lagring.satt_roll(oid, roll)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+    return RedirectResponse("/anvandare?sparat=1", status_code=303)
+
+
 @app.get("/export.xlsx")
 def export(request: Request, ar: int | None = None):
     ar = _ar(request, ar)

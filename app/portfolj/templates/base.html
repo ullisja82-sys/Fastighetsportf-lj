@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="{{ statisk('app.css') }}">
   {% block huvud %}{% endblock %}
 </head>
-<body>
+<body{% if request.state.anvandare is defined and request.state.anvandare.roll == 'lasare' %} data-endast-las{% endif %}>
 {% macro tkr(v) -%}{{ v|tal(0) }}{%- endmacro %}
 {% macro mnkr(v) -%}{% if v is none %}–{% else %}{{ (v / 1000)|tal(1) }}{% endif %}{%- endmacro %}
 {% macro pct(v, d=1) -%}{% if v is none %}–{% else %}{{ (v * 100)|tal(d) }} %{% endif %}{%- endmacro %}
@@ -49,9 +49,13 @@
         <svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg><span class="text">Krav per ålder</span></a>
       <a href="/underlag" class="{{ 'aktiv' if nav == 'underlag' }}" {% if nav == 'underlag' %}aria-current="page"{% endif %}>
         <svg viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 13h7M9 17h7"/></svg><span class="text">Underlag och datakvalitet</span></a>
+      {% if request.state.anvandare is defined and request.state.anvandare.roll == 'admin' %}
+      <a href="/anvandare" class="{{ 'aktiv' if nav == 'anvandare' }}" {% if nav == 'anvandare' %}aria-current="page"{% endif %}>
+        <svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5M16 4.5a3.5 3.5 0 0 1 0 7M18 14.8c1.9.7 3.1 2.5 3.5 5.2"/></svg><span class="text">Användare och behörigheter</span></a>
+      {% endif %}
     </nav>
     <div class="sidomeny-fot">Prototyp. Belopp i tkr där inget annat anges.
-      {% if request.state.anvandare is defined %}<br>{{ request.state.anvandare.namn }} · <a href="/logga-ut">Logga ut</a>{% endif %}</div>
+      {% if request.state.anvandare is defined %}<br>{{ request.state.anvandare.namn }} ({{ {'lasare': 'läsare', 'redigerare': 'redigerare', 'admin': 'administratör'}[request.state.anvandare.roll] }}) · <a href="/logga-ut">Logga ut</a>{% endif %}</div>
   </aside>
 
   <main class="innehall">

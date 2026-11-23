@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block titel %}Användare och behörigheter{% endblock %}
+{% block innehall %}
+<div class="sidhuvud">
+  <div class="versal">Fastighetsportfölj</div>
+  <h1>Användare och behörigheter</h1>
+  <p class="dampad">Alla som loggar in med sitt HFAB-konto hamnar här. Första gången har de ingen åtkomst; ge dem en behörighet nedan. Ändringen gäller direkt.</p>
+</div>
+{% if sparat %}<div class="ruta ok">Behörigheten är sparad.</div>{% endif %}
+{% set vantar = anvandare|selectattr('roll', 'equalto', 'ingen')|list %}
+{% if vantar %}<div class="ruta varning">{{ vantar|length }} {{ 'person väntar' if vantar|length == 1 else 'personer väntar' }} på behörighet.</div>{% endif %}
+
+<section class="kort">
+  <div class="tabell-rull">
+  <table class="tabell">
+    <tr><th>Namn</th><th>E-post</th><th>Behörighet</th><th>Senast inloggad</th><th></th></tr>
+    {% for a in anvandare %}
+    <tr>
+      <td><b>{{ a.namn }}</b></td>
+      <td class="liten">{{ a.epost }}</td>
+      {% if a.oid in fasta %}
+      <td>Administratör <span class="mini svag">(fast, ADMIN_EPOST)</span></td><td class="liten nowrap">{{ a.senast_inloggad }}</td><td></td>
+      {% elif a.oid == request.state.anvandare.oid %}
+      <td>{{ ROLLER[a.roll] }} <span class="mini svag">(du)</span></td><td class="liten nowrap">{{ a.senast_inloggad }}</td><td></td>
+      {% else %}
+      <td>
+        <form method="post" action="/anvandare" style="display:flex;gap:8px;align-items:center">
+          <input type="hidden" name="oid" value="{{ a.oid }}">
+          <select name="roll">{% for k, v in ROLLER.items() %}<option value="{{ k }}" {{ 'selected' if a.roll == k }}>{{ v }}</option>{% endfor %}</select>
+          <button class="knapp liten">Spara</button>
+        </form>
+      </td>
+      <td class="liten nowrap">{{ a.senast_inloggad }}</td>
+      <td><form method="post" action="/anvandare" onsubmit="return confirm('Ta bort {{ a.namn|e }} ur listan? Personen hamnar här igen med Ingen åtkomst om den loggar in på nytt.')">
+        <input type="hidden" name="oid" value="{{ a.oid }}"><button class="knapp sek liten" name="ta_bort" value="1">Ta bort</button></form></td>
+      {% endif %}
+    </tr>
+    {% endfor %}
+  </table>
+  </div>
+</section>
+
+<section class="kort">
+  <h2>Behörigheterna</h2>
+  <table class="tabell">
+    {% for k, v in ROLLER.items() %}<tr><td class="nowrap"><b>{{ v }}</b></td><td>{{ ROLLFORKLARING[k] }}</td></tr>{% endfor %}
+  </table>
+  <p class="mini svag">Vem som över huvud taget kan logga in styrs i Entra ID (företagsappen, Tilldelning krävs). Att ta bort någon här stänger inte av kontot; ge Ingen åtkomst för att spärra personen.</p>
+</section>
+{% endblock %}

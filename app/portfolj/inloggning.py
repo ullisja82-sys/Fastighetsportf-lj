@@ -1,7 +1,9 @@
 """Personlig inloggning via Entra ID (OpenID Connect, auktoriseringskod med PKCE).
 
-Samma flöde som i Styrning, men utan användartabell och roller: den som får logga in i
-Entra ID (tilldelad företagsappen) får se allt. Namn och e-post tas ur id-token.
+Samma flöde som i Styrning. Behörigheten delas ut i appen (sidan Användare och behörigheter), inte i
+Entra ID: den som loggar in första gången får Ingen åtkomst tills en administratör ger Läsare, Redigerare
+eller Administratör. Adresserna i ADMIN_EPOST är alltid administratörer. Rollen läses ur databasen vid
+varje anrop, så en ändring gäller direkt. Namn och e-post tas ur id-token.
 
 Inloggningen är på när ENTRA_TENANT_ID, ENTRA_CLIENT_ID, ENTRA_CLIENT_SECRET och APP_URL är satta.
 Omdirigerings-URI i appregistreringen: APP_URL/auth/callback, utloggning: APP_URL/utloggad.
@@ -12,6 +14,7 @@ tokenslutpunkt över TLS av en konfidentiell klient (OpenID Connect Core 3.1.3.7
 import base64
 import hashlib
 import hmac
+import html
 import json
 import os
 import secrets
@@ -23,12 +26,15 @@ import urllib.request
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
+from . import lagring
+
 TENANT_ID = os.environ.get("ENTRA_TENANT_ID", "").strip()
 CLIENT_ID = os.environ.get("ENTRA_CLIENT_ID", "").strip()
 CLIENT_SECRET = os.environ.get("ENTRA_CLIENT_SECRET", "").strip()
 APP_URL = os.environ.get("APP_URL", "").strip().rstrip("/")
 SESSION_TIMMAR = int(os.environ.get("SESSION_TIMMAR", "10") or 10)
 LOGIN_URL = "https://login.microsoftonline.com"
+ADMIN_EPOST = {a.strip().casefold() for a in os.environ.get("ADMIN_EPOST", "").split(",") if a.strip()}
 
 SESSIONSKAKA = "session"
 FLODESKAKA = "inloggning"
@@ -73,8 +79,13 @@ def las_signerad(varde: str | None) -> dict | None:
 
 
 def inloggad(request: Request) -> dict | None:
-    """{"namn": ..., "epost": ...} för den inloggade personen, eller None."""
-    return las_signerad(request.cookies.get(SESSIONSKAKA))
+    """Den inloggade personen ur tabellen anvandare (med aktuell roll), eller None."""
+    data = las_signerad(request.cookies.get(SESSIONSKAKA))
+    return lagring.anvandare(data["oid"]) if data and data.get("oid") else None
+
+
+def fast_admin(*adresser: str | None) -> bool:
+    return any(a and a.strip().casefold() in ADMIN_EPOST for a in adresser)
 
 
 def _saker_kaka() -> bool:
@@ -163,11 +174,14 @@ def callback(request: Request, code: str | None = None, state: str | None = None
         return _felsida("Kunde inte nå Microsoft.", 502)
     except (KeyError, ValueError) as e:
         return _felsida(str(e))
+    if not claims.get("oid"):
+        return _felsida("Id-token saknar användarens objekt-id (oid).")
     epost = claims.get("email") or claims.get("preferred_username") or ""
+    lagring.registrera_inloggning(claims["oid"], claims.get("name") or epost, epost,
+                                  fast_admin(claims.get("email"), claims.get("preferred_username")))
     resp = RedirectResponse(flode["t"], status_code=303)
     resp.delete_cookie(FLODESKAKA)
-    resp.set_cookie(SESSIONSKAKA, signera({"namn": claims.get("name") or epost, "epost": epost,
-                                           "exp": time.time() + SESSION_TIMMAR * 3600}),
+    resp.set_cookie(SESSIONSKAKA, signera({"oid": claims["oid"], "exp": time.time() + SESSION_TIMMAR * 3600}),
                     max_age=SESSION_TIMMAR * 3600, httponly=True, secure=_saker_kaka(), samesite="lax")
     return resp
 
@@ -189,14 +203,31 @@ def utloggad():
         "<h1>Du är utloggad från Fastighetsportföljen</h1><p><a href='/logga-in'>Logga in igen</a></p>")
 
 
+def _sida(rubrik: str, text: str, status: int) -> HTMLResponse:
+    return HTMLResponse(
+        f"<!doctype html><meta charset='utf-8'><title>{rubrik}</title>"
+        f"<body style='font-family:sans-serif;max-width:40rem;margin:4rem auto'>"
+        f"<h1>{rubrik}</h1><p>{text}</p><p><a href='/logga-ut'>Logga ut</a></p>", status_code=status)
+
+
 async def krav_inloggning(request: Request, call_next):
-    """Middleware: alla sidor utom inloggningsflödet kräver inloggning."""
-    if not request.url.path.startswith(OPPNA_SOKVAGAR):
-        anv = inloggad(request)
-        if anv is None:
-            if request.method == "GET":
-                till = request.url.path + (f"?{request.url.query}" if request.url.query else "")
-                return RedirectResponse("/logga-in?" + urllib.parse.urlencode({"till": till}), status_code=303)
-            return HTMLResponse("Du är inte inloggad.", status_code=401)
-        request.state.anvandare = anv
+    """Middleware: alla sidor utom inloggningsflödet kräver inloggning och rätt behörighet."""
+    if request.url.path.startswith(OPPNA_SOKVAGAR):
+        return await call_next(request)
+    anv = inloggad(request)
+    if anv is None:
+        if request.method == "GET":
+            till = request.url.path + (f"?{request.url.query}" if request.url.query else "")
+            return RedirectResponse("/logga-in?" + urllib.parse.urlencode({"till": till}), status_code=303)
+        return HTMLResponse("Du är inte inloggad.", status_code=401)
+    if anv["roll"] == "ingen":
+        return _sida("Du väntar på behörighet",
+                     f"Du är inloggad som {html.escape(anv['namn'] or anv['epost'] or '')}, men har ännu inte fått behörighet "
+                     "till Fastighetsportföljen. En administratör behöver ge dig behörighet.", 403)
+    if request.url.path.startswith("/anvandare") and anv["roll"] != "admin":
+        return _sida("Ingen behörighet", "Bara administratörer kan dela ut behörigheter.", 403)
+    if request.method != "GET" and anv["roll"] not in ("redigerare", "admin"):
+        return _sida("Ingen behörighet", "Du har läsbehörighet och kan inte ändra något. Be en administratör om "
+                     "behörigheten Redigerare.", 403)
+    request.state.anvandare = anv
     return await call_next(request)

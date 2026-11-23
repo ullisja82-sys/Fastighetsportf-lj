@@ -15,8 +15,17 @@ Adress: **https://fastighetsportfolj.hfab.se** (HTTPS-proxyn i `hfab-drift/porta
 
 Kopiera `.env.example` till `.env` och fyll i `ENTRA_TENANT_ID`, `ENTRA_CLIENT_ID`, `ENTRA_CLIENT_SECRET`,
 `SESSION_SECRET` och `APP_URL`; kör sedan `docker compose up -d`. Då kräver alla sidor inloggning (OpenID Connect,
-auktoriseringskod med PKCE, samma flöde som Styrning men utan roller). Vem som får logga in styrs i Entra ID:
-företagsappen med *Tilldelning krävs* och tilldelade användare/grupper. Utan inställningarna saknar appen inloggning.
+auktoriseringskod med PKCE, samma flöde som Styrning). Utan inställningarna saknar appen inloggning.
+
+Behörigheter delas ut i appen under *Användare och behörigheter* (bara för administratörer), inte i Entra ID:
+
+- **Ingen åtkomst** – alla som loggar in första gången. Ser ingenting förrän en administratör ger behörighet.
+- **Läsare** – ser allt och kan exportera, ändrar ingenting.
+- **Redigerare** – kan även ändra krav, byggår, anteckningar, kopplingar och läsa in underlagen på nytt.
+- **Administratör** – kan även dela ut behörigheter. Adresserna i `ADMIN_EPOST` är alltid administratörer.
+
+Rollen kontrolleras på servern vid varje anrop och sparas i tabellen `anvandare` (SQLite, volymen `portfoljdata`).
+Vem som över huvud taget kan logga in styrs i Entra ID: företagsappen med *Tilldelning krävs*.
 
 Appregistreringen: plattform *Webb*, omdirigerings-URI `https://fastighetsportfolj.hfab.se/auth/callback`,
 utloggnings-URL `https://fastighetsportfolj.hfab.se/utloggad`, delegerade behörigheter `openid`, `profile`, `email`.
