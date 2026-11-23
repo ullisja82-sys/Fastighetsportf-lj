@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block titel %}Fastigheter{% endblock %}
+{% block innehall %}
+<div class="sidhuvud">
+  <div class="versal">Fastighetsportfölj · december {{ ar }}</div>
+  <h1>Fastigheter</h1>
+  <p class="dampad">Filtrera och sortera. Summaraden längst ner följer urvalet. Klicka på en kolumnrubrik för att sortera.</p>
+</div>
+
+<section class="kort">
+  <form class="filter" onsubmit="return false">
+    <input type="search" id="f-sok" placeholder="Sök nummer eller namn…" aria-label="Sök fastighet">
+    <select id="f-ao" aria-label="Affärsområde"><option value="">Alla affärsområden</option>{% for a in aos %}<option {{ 'selected' if val.ao == a }}>{{ a }}</option>{% endfor %}</select>
+    <select id="f-klass" aria-label="Åldersklass"><option value="">Alla åldersklasser</option>
+      {% for n in klassnamn %}<option value="{{ loop.index0 }}" {{ 'selected' if val.klass == loop.index0|string }}>{{ n }}</option>{% endfor %}
+      <option value="-" {{ 'selected' if val.klass == '-' }}>Byggår saknas</option></select>
+    <select id="f-status" aria-label="Status"><option value="">Alla statusar</option>
+      {% for s, n in STATUS.items() %}<option value="{{ s }}" {{ 'selected' if val.status == s }}>{{ n }}</option>{% endfor %}</select>
+    <select id="f-projekt" aria-label="Byggprojekt"><option value="">Med och utan projekt</option><option value="alla">Har projekt</option>
+      <option value="pagar">Projekt pågår</option><option value="planerat">Projekt planerat</option><option value="inv">I investeringsportföljen</option></select>
+    <label class="kryss"><input type="checkbox" id="f-flagga"> Bara med datakvalitetsflagga</label>
+    <span class="mini dampad" id="f-raknare"></span>
+  </form>
+  <div class="tabell-rull">
+  <table class="tabell kompakt sorterbar" id="fastighetstabell">
+    <thead>
+    <tr><th data-sort="text">Fastighet</th><th data-sort="text">AO</th><th class="num" data-sort="num">Byggår</th><th class="num" data-sort="num">Ålder</th>
+      <th class="num" data-sort="num">Intäkter</th><th class="num" data-sort="num">Driftsnetto</th><th class="num" data-sort="num">Överskotts&shy;grad {{ hjalp_og() }}</th><th class="num" data-sort="num">Gap överskotts&shy;grad</th>
+      <th class="num" data-sort="num">{{ vardenamn|capitalize }}</th><th class="num" data-sort="num">Avkastning {{ vardekort }} {{ hjalp_avk() }}</th><th class="num" data-sort="num">Gap avkastning</th>
+      <th class="num" data-sort="num">Driftsnetto mot krav</th><th data-sort="text">Status</th></tr>
+    </thead>
+    <tbody>
+    {% for r in rader %}
+    <tr data-ao="{{ r.ao }}" data-klass="{{ r.klass if r.klass is not none else '-' }}" data-status="{{ r.status }}" data-flagga="{{ 1 if r.flaggor else 0 }}" data-projekt="{{ projekt.lage(r.kod) }}" data-inv="{{ 1 if inv_per_fastighet.get(r.kod) else 0 }}"
+        data-sok="{{ (r.kod ~ ' ' ~ r.namn)|lower }}" data-int="{{ r.intakter or 0 }}" data-dn="{{ r.driftsnetto or 0 }}" data-varde="{{ r.varde or 0 }}"
+        data-ogint="{{ r.intakter if r.og is not none else 0 }}" data-ogdn="{{ r.driftsnetto if r.og is not none else 0 }}"
+        data-avkdn="{{ r.driftsnetto if r.avk is not none else 0 }}" data-avkv="{{ r.varde if r.avk is not none else 0 }}"
+        data-under="{{ r.dn_mot_krav if r.dn_mot_krav is not none and r.dn_mot_krav < 0 else 0 }}">
+      <td data-v="{{ r.kod.zfill(6) }}"><a href="/fastighet/{{ r.kod }}"><b>{{ r.kod }}</b> {{ r.namn }}</a>
+        {% if r.flaggor or projekt.lage(r.kod) or inv_per_fastighet.get(r.kod) %}<div>{{ invchip(r.kod) }}{{ projektchip(r.kod) }}{% for f in r.flaggor %}<span class="chip varning">{{ f }}</span>{% endfor %}</div>{% endif %}</td>
+      <td class="liten" data-v="{{ r.ao }}">{{ r.ao }}</td>
+      <td class="num" data-v="{{ r.byggar or '' }}">{{ r.byggar or '–' }}{% if r.justerat_byggar %}<span class="svag" title="Byggår ändrat i appen">*</span>{% endif %}</td>
+      <td class="num" data-v="{{ r.alder if r.alder is not none else '' }}">{{ r.alder if r.alder is not none else '–' }}</td>
+      <td class="num" data-v="{{ r.intakter if r.intakter is not none else '' }}">{{ tkr(r.intakter) }}</td>
+      <td class="num {{ 'neg' if (r.driftsnetto or 0) < 0 }}" data-v="{{ r.driftsnetto if r.driftsnetto is not none else '' }}">{{ tkr(r.driftsnetto) }}</td>
+      <td class="num" data-v="{{ r.og if r.og is not none else '' }}">{{ pct(r.og) }}<div class="mini svag">krav {{ pct(r.krav_og, 0) }}</div></td>
+      <td class="num" data-v="{{ r.gap_og if r.gap_og is not none else '' }}">{{ gap(r.gap_og) }}</td>
+      <td class="num" data-v="{{ r.varde if r.varde is not none else '' }}">{{ tkr(r.varde) }}</td>
+      <td class="num" data-v="{{ r.avk if r.avk is not none else '' }}">{{ pct(r.avk) }}<div class="mini svag">krav {{ pct(r.krav_avk, 0) }}</div></td>
+      <td class="num" data-v="{{ r.gap_avk if r.gap_avk is not none else '' }}">{{ gap(r.gap_avk) }}</td>
+      <td class="num" data-v="{{ r.dn_mot_krav if r.dn_mot_krav is not none else '' }}">{{ diff(r.dn_mot_krav) }}</td>
+      <td data-v="{{ ['rod', 'gul', 'gron', 'ingen'].index(r.status) }}">{{ pill(r.status) }}{% if r.delvis_bedomd %}<div class="mini svag">prövad mot ett krav</div>{% endif %}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+    <tfoot>
+    <tr class="summa"><td id="s-antal">Summa</td><td></td><td></td><td></td><td class="num" id="s-int"></td><td class="num" id="s-dn"></td><td class="num" id="s-og"></td><td></td>
+      <td class="num" id="s-varde"></td><td class="num" id="s-avk"></td><td></td><td class="num" id="s-under"></td><td></td></tr>
+    </tfoot>
+  </table>
+  </div>
+  <p class="mini svag">Belopp i tkr, gap i procentenheter. 
+    Driftsnetto mot krav = driftsnettot minus det driftsnetto som det strängaste av de två kraven motsvarar. I summaraden visas summan av underskotten.
+    * = byggår ändrat i appen.</p>
+</section>
+{% endblock %}

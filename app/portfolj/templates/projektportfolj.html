@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% block titel %}Projektportfölj{% endblock %}
+{% macro mn(kr, d=1) %}{{ (kr / 1000000)|tal(d) }}{% endmacro %}
+{% macro statuschip(p) %}<span class="chip projekt {{ p.lage or 'stangd' }}">{{ p.status }}</span>{% endmacro %}
+{% macro fastighet(p) %}{% if p.kod %}<a href="/fastighet/{{ p.kod }}" title="{{ fastighetsnamn.get(p.kod, '') }}">{{ p.kod }}</a>{% else %}<span class="svag">–</span>{% endif %}{% endmacro %}
+{% block innehall %}
+<div class="sidhuvud sidhuvud-rad">
+  <div>
+    <div class="versal"><a href="/">Portföljen</a> · projektportfölj</div>
+    <h1>Projektportfölj</h1>
+    <p class="dampad">Pågående och planerade byggprojekt på fastigheterna – hur många de är, vad de kostar per år, vem som leder dem och vilka som har passerat sitt slutdatum. Belopp i mnkr.</p>
+  </div>
+  {% if projekt.filnamn %}<span class="chip">Källa: {{ projekt.filnamn }}</span>{% endif %}
+</div>
+
+{% if projekt.fel %}<div class="ruta varning">Projektlistan {{ projekt.filnamn }} gick inte att läsa: {{ projekt.fel }}</div>
+{% elif not projekt.alla %}<div class="kort"><p class="dampad">Ingen projektlista är inläst. Lägg exporten (Excel) i mappen Projekt och läs in underlagen på nytt under Underlag och datakvalitet.</p></div>
+{% else %}
+{% set t = s.total %}
+<div class="nyckeltal inv-nyckeltal">
+  <div><span class="versal">Pågående projekt</span><b>{{ t.pagar }}</b><span class="mini dampad">på {{ s.alla|selectattr('lage', 'equalto', 'pagar')|map(attribute='kod')|select|unique|list|length }} fastigheter</span></div>
+  <div><span class="versal">Planerade projekt</span><b>{{ t.planerat }}</b><span class="mini dampad">planerad plan, fastställd plan eller klar för avrop</span></div>
+  <div><span class="versal">Total budget</span><b>{{ mn(t.belopp, 0) }} <small>mnkr</small></b>
+    <span class="mini dampad">{% for k, (_, n) in SLAG.items() %}{{ n }} {{ mn(t[k], 0) }}{{ ' · ' if not loop.last }}{% endfor %}</span></div>
+  <div><span class="versal">Passerat slutdatum</span><b class="{{ 'neg' if t.passerat }}">{{ t.passerat }}</b><span class="mini dampad">pågående projekt med förväntat slut före {{ idag }}</span></div>
+</div>
+
+<div class="statusrad projektstatus">
+  {% for namn, lista in s.statusar %}
+  <a href="#alla" class="statusruta" data-valj-status="{{ namn }}"><span class="versal">{{ namn }}</span><b>{{ lista|length }}</b>
+    <span class="mini dampad">{{ mn(lista|sum(attribute='k3') + lista|sum(attribute='inv') + lista|sum(attribute='opex'), 0) }} mnkr</span></a>
+  {% endfor %}
+</div>
+
+<div class="rutnat-2">
+  <section class="kort">
+    <div class="kort-rubrik"><h2>Budget per år</h2><span class="mini dampad">mnkr, pågående och planerade projekt</span></div>
+    <div class="forklaring mini">{% for k, (_, n) in SLAG.items() %}<span><i class="ruta-farg {{ k }}"></i>{{ n }}</span>{% endfor %}</div>
+    {{ diagram }}
+    <p class="mini dampad">Summan av projektens årsbelopp i listan.{% if s.ofordelat|abs > 500000 %} {{ mn(s.ofordelat) }} mnkr av den totala budgeten är inte fördelat på åren {{ projekt.aren[0] }}–{{ projekt.aren[-1] }}.{% endif %}</p>
+    <details><summary class="liten">Visa som tabell</summary>
+      <table class="tabell">
+        <tr><th>År</th>{% for k, (_, n) in SLAG.items() %}<th class="num">{{ n }}</th>{% endfor %}<th class="num">Totalt</th></tr>
+        {% for a, v in s.per_ar %}<tr><td>{{ a }}</td>{% for k in SLAG %}<td class="num">{{ mn(v[k]) }}</td>{% endfor %}<td class="num"><b>{{ mn(v.values()|sum) }}</b></td></tr>{% endfor %}
+      </table></details>
+  </section>
+  <section class="kort">
+    <div class="kort-rubrik"><h2>Per affärsområde</h2><span class="mini dampad">pågående och planerade</span></div>
+    <table class="tabell">
+      <tr><th>Affärsområde</th><th class="num">Pågår</th><th class="num">Planerat</th><th class="num">Passerat slut</th><th class="num">Budget</th><th class="andel-rubrik">Andel</th></tr>
+      {% for namn, g in s.per_ao %}
+      <tr><td><b>{{ namn }}</b></td><td class="num">{{ g.pagar }}</td><td class="num">{{ g.planerat }}</td><td class="num {{ 'neg' if g.passerat }}">{{ g.passerat or '–' }}</td><td class="num">{{ mn(g.belopp) }}</td>
+        <td class="andel"><i style="width:{{ (g.belopp / t.belopp * 100 if t.belopp else 0)|round(1) }}%"></i></td></tr>
+      {% endfor %}
+      <tr class="summa"><td>Totalt</td><td class="num">{{ t.pagar }}</td><td class="num">{{ t.planerat }}</td><td class="num">{{ t.passerat or '–' }}</td><td class="num">{{ mn(t.belopp) }}</td><td></td></tr>
+    </table>
+    <p class="mini dampad">Affärsområdet kommer från fastigheten (K-Ställe). ”Utan fastighet” är projekt som inte ligger på en fastighet i portföljen, t.ex. nyproduktion.</p>
+  </section>
+</div>
+
+<div class="rutnat-2">
+  <section class="kort">
+    <div class="kort-rubrik"><h2>Passerat slutdatum</h2><span class="mini dampad">{{ s.passerade|length }} pågående projekt</span></div>
+    {% if s.passerade %}
+    <div class="tabell-rull rullhojd">
+    <table class="tabell">
+      <tr><th>Projekt</th><th>Fastighet</th><th>Förväntat slut</th><th>Projektledare</th><th class="num">Budget</th></tr>
+      {% for p in s.passerade %}
+      <tr><td><b>{{ p.namn }}</b>{% if p.nummer %}<div class="mini svag">{{ p.nummer }}</div>{% endif %}</td><td class="liten">{{ fastighet(p) }}</td>
+        <td class="nowrap neg">{{ p.slut }}</td><td class="liten">{{ p.projektledare or '–' }}</td><td class="num">{{ mn(p.k3 + p.inv + p.opex) }}</td></tr>
+      {% endfor %}
+    </table>
+    </div>
+    <p class="mini dampad">Projekt som står som pågående fast det förväntade slutdatumet har passerat – antingen är de försenade eller så behöver datumet eller statusen uppdateras i listan.</p>
+    {% else %}<p class="dampad liten">Inget pågående projekt har passerat sitt förväntade slutdatum.</p>{% endif %}
+  </section>
+  <section class="kort">
+    <div class="kort-rubrik"><h2>Största projekten</h2><span class="mini dampad">tio största, total budget</span></div>
+    <table class="tabell">
+      <tr><th>Projekt</th><th>Fastighet</th><th>Status</th><th>Slut</th><th class="num">Budget</th></tr>
+      {% for p in s.storsta %}
+      <tr><td><b>{{ p.namn }}</b></td><td class="liten">{{ fastighet(p) }}</td><td>{{ statuschip(p) }}</td><td class="nowrap liten">{{ p.slut.year if p.slut else '–' }}</td><td class="num">{{ mn(p.k3 + p.inv + p.opex) }}</td></tr>
+      {% endfor %}
+    </table>
+  </section>
+</div>
+
+<section class="kort">
+  <div class="kort-rubrik"><h2>Per projektledare</h2><span class="mini dampad">pågående och planerade</span></div>
+  <div class="tabell-rull">
+  <table class="tabell">
+    <tr><th>Projektledare</th><th class="num">Pågår</th><th class="num">Planerat</th><th class="num">Passerat slut</th><th class="num">Budget</th><th class="andel-rubrik">Andel</th></tr>
+    {% for namn, g in s.per_ledare %}
+    <tr><td><b>{{ namn }}</b></td><td class="num">{{ g.pagar }}</td><td class="num">{{ g.planerat }}</td><td class="num {{ 'neg' if g.passerat }}">{{ g.passerat or '–' }}</td><td class="num">{{ mn(g.belopp) }}</td>
+      <td class="andel"><i style="width:{{ (g.belopp / t.belopp * 100 if t.belopp else 0)|round(1) }}%"></i></td></tr>
+    {% endfor %}
+  </table>
+  </div>
+</section>
+
+<section class="kort" id="alla">
+  <div class="kort-rubrik"><h2>Alla projekt</h2><span class="mini dampad" id="p-raknare"></span></div>
+  <form class="filter" onsubmit="return false">
+    <input type="search" id="p-sok" placeholder="Sök projekt, nummer eller fastighet…" aria-label="Sök projekt">
+    <select id="p-status" aria-label="Status"><option value="aktiva">Pågående och planerade</option><option value="">Alla statusar</option>
+      {% for namn, _ in s.statusar %}<option>{{ namn }}</option>{% endfor %}</select>
+    <select id="p-ao" aria-label="Affärsområde"><option value="">Alla affärsområden</option>{% for namn, _ in s.per_ao %}<option>{{ namn }}</option>{% endfor %}</select>
+    <select id="p-ledare" aria-label="Projektledare"><option value="">Alla projektledare</option>{% for namn in s.alla|map(attribute='projektledare')|select|unique|sort %}<option>{{ namn }}</option>{% endfor %}</select>
+    <label class="kryss"><input type="checkbox" id="p-passerat"> Bara passerat slutdatum</label>
+  </form>
+  <div class="tabell-rull">
+  <table class="tabell kompakt" id="projekttabell">
+    <thead><tr><th>Projekt</th><th>Fastighet</th><th>AO</th><th>Status</th><th>Förväntat slut</th><th>Projektledare</th>
+      {% for k, (_, n) in SLAG.items() %}<th class="num">{{ n }}</th>{% endfor %}<th class="num">Budget</th></tr></thead>
+    <tbody>
+    {% for p in s.alla %}
+    <tr data-status="{{ p.status }}" data-aktiv="{{ 1 if p.lage else 0 }}" data-ao="{{ p.ao }}" data-ledare="{{ p.projektledare }}" data-passerat="{{ 1 if p.passerat else 0 }}"
+        data-sok="{{ (p.namn ~ ' ' ~ p.nummer ~ ' ' ~ p.kod ~ ' ' ~ fastighetsnamn.get(p.kod, '') ~ ' ' ~ p.paraply)|lower }}" data-k3="{{ p.k3 }}" data-inv="{{ p.inv }}" data-opex="{{ p.opex }}">
+      <td><b>{{ p.namn }}</b><div class="mini svag">{{ p.nummer }}{% if p.paraply %}{{ ' · ' if p.nummer }}{{ p.paraply }}{% endif %}</div></td>
+      <td class="liten">{{ fastighet(p) }}</td><td class="liten">{{ p.ao if p.kod else '–' }}</td><td>{{ statuschip(p) }}</td>
+      <td class="nowrap {{ 'neg' if p.passerat }}">{{ p.slut or '–' }}</td><td class="liten">{{ p.projektledare or '–' }}</td>
+      {% for k in SLAG %}<td class="num {{ 'svag' if not p[k] }}">{{ mn(p[k]) if p[k] else '–' }}</td>{% endfor %}
+      <td class="num"><b>{{ mn(p.k3 + p.inv + p.opex) }}</b></td>
+    </tr>
+    {% endfor %}
+    </tbody>
+    <tfoot><tr class="summa"><td id="ps-antal">Summa</td><td></td><td></td><td></td><td></td><td></td><td class="num" id="ps-inv"></td><td class="num" id="ps-k3"></td><td class="num" id="ps-opex"></td><td class="num" id="ps-tot"></td></tr></tfoot>
+  </table>
+  </div>
+  <p class="mini dampad">Belopp i mnkr. Capex investering och Capex K3 är aktiverade utgifter, Opex kostnadsförs. Budget = summan av de tre totalbeloppen i listan. Fastighetsnumret är listans K-Ställe.</p>
+</section>
+{% endif %}
+{% endblock %}

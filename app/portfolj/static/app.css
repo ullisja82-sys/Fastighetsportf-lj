@@ -1,0 +1,339 @@
+/* HFAB Fastighetsportfölj – samma layout och profil som HFAB Styrning (hfab.se, november 2026):
+   vit sidomeny med logotyp, vitt toppfält med orange skugga, sandfärgade kort utan ram, mörkgrå knappar,
+   Open Sans i brödtext och etiketter, serif i rubriker. Statusfärgerna (grön/gul/röd) behåller sin betydelse. */
+@font-face { font-family: 'Open Sans'; font-style: normal; font-weight: 400 800; font-display: swap; src: url('/static/fonter/OpenSans-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Source Serif 4'; font-style: normal; font-weight: 600 900; font-display: swap; src: url('/static/fonter/SourceSerif4-normal.woff2') format('woff2'); }
+:root {
+  --kungsbla: #2761A6; --orange: #F36D30;
+  --bg: #FFFFFF; --yta: #FFFFFF; --yta2: #F9F6EE; --linje: #E5E5E5; --linje2: #D2D2D2; --text: #1D1D1D; --dampad: #595959; --svag: #8a8a8a;
+  --accent: var(--kungsbla); --accent-ljus: #F4F7FF;
+  --gron: #05806E; --gron-bg: #E4F5EE; --gul: #d9ac00; --gul-bg: #fff3c4; --rod: #C31712; --rod-bg: #FFEAEA;
+  --radie: 4px; --skugga-hover: 0 8px 24px rgba(29, 29, 29, .12);
+  --serif: "Source Serif 4", Georgia, serif;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font-family: "Open Sans", system-ui, sans-serif; font-size: 15px; line-height: 1.5; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+h1, h2 { margin: 0; font-family: var(--serif); font-weight: 900; }
+h1 { font-size: 1.85rem; letter-spacing: -.015em; line-height: 1.15; }
+h2 { font-size: 1.25rem; letter-spacing: -.01em; margin-bottom: 12px; }
+p { margin: 0 0 .6em; }
+.dampad { color: var(--dampad); } .svag { color: var(--svag); } .liten { font-size: .85rem; } .mini { font-size: .78rem; }
+.versal { font-size: .76rem; font-weight: 600; letter-spacing: .02em; color: var(--dampad); }
+.nowrap { white-space: nowrap; }
+.pos { color: var(--gron); } .neg { color: var(--rod); }
+
+/* ---------- Layout ---------- */
+.app { display: grid; grid-template-columns: 268px 1fr; min-height: 100vh; }
+.sidomeny { background: #fff; color: var(--text); border-right: 1px solid var(--linje); box-shadow: 6px 0 12px -10px rgba(243, 109, 48, .35);
+  padding: 22px 14px; position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; gap: 22px; }
+.logga { display: flex; align-items: center; gap: 10px; padding: 0 8px; color: var(--text); }
+.logga:hover { text-decoration: none; }
+.logga-bild { width: 72px; height: auto; display: block; }
+.logga-text { display: flex; flex-direction: column; line-height: 1.2; }
+.logga-text b { font-size: .95rem; font-weight: 700; }
+.logga-text span { font-size: .72rem; color: var(--dampad); }
+.nav { display: flex; flex-direction: column; gap: 2px; }
+.nav a { display: flex; gap: 10px; align-items: center; padding: 9px 14px; color: var(--text); font-weight: 600; font-size: .92rem; border-radius: 100px; transition: background-color .2s ease-in-out; }
+.nav a:hover { background: var(--yta2); text-decoration: none; }
+.nav a.aktiv { background: #FEF0EA; font-weight: 700; box-shadow: inset 3px 0 0 var(--orange); }
+.nav svg { width: 18px; height: 18px; flex: none; stroke: currentColor; fill: none; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.nav a.oppen:not(.aktiv) { font-weight: 700; }
+.undernav { display: flex; flex-direction: column; gap: 1px; margin: 0 0 6px 24px; border-left: 2px solid var(--linje); }
+.nav .undernav a { padding: 5px 10px; font-size: .84rem; font-weight: 500; color: var(--dampad); }
+.nav .undernav a:hover { background: var(--yta2); color: var(--text); }
+.nav .undernav a.aktiv { background: var(--yta2); color: var(--text); font-weight: 700; box-shadow: inset 3px 0 0 var(--orange); border-radius: 0 100px 100px 0; }
+.sidomeny-fot { margin-top: auto; padding: 10px 8px 0; font-size: .76rem; color: var(--dampad); border-top: 1px solid var(--linje); }
+.innehall { min-width: 0; }
+.toppfalt { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 14px 32px;
+  background: rgba(255, 255, 255, .96); backdrop-filter: blur(6px); box-shadow: 0 6px 6px -6px rgba(243, 109, 48, .25); position: sticky; top: 0; z-index: 5; }
+.toppfalt-vanster { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.tillbakaknapp[hidden] { display: none; }
+.toppfalt-hoger { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.arsval { display: flex; align-items: center; gap: 10px; }
+.arsval nav { display: flex; }
+.arsval nav a { padding: 4px 14px; border: 1px solid var(--linje2); margin-left: -1px; background: #fff; color: var(--text); font-family: var(--serif); font-weight: 900; font-size: 1.05rem; line-height: 1.3; }
+.arsval nav a:first-child { margin-left: 0; border-radius: var(--radie) 0 0 var(--radie); }
+.arsval nav a:last-child { border-radius: 0 var(--radie) var(--radie) 0; }
+.arsval nav a:hover { background: var(--yta2); text-decoration: none; }
+.arsval nav a.aktiv { background: var(--kungsbla); border-color: var(--kungsbla); color: #fff; }
+.sida { padding: 28px 32px 64px; max-width: 1840px; }
+.sidhuvud { margin-bottom: 22px; }
+.sidhuvud p { margin: 4px 0 0; max-width: 75ch; }
+.sidhuvud .versal { margin-bottom: 6px; }
+
+/* ---------- Knappar ---------- */
+.knapp { display: inline-flex; align-items: center; gap: 6px; background: #1D1D1D; color: #fff; border: 1px solid #1D1D1D; border-radius: var(--radie);
+  padding: 10px 18px; font: inherit; font-weight: 600; font-size: .9rem; cursor: pointer; white-space: nowrap;
+  transition: border-radius .3s ease-in-out, box-shadow .3s ease-in-out; }
+.knapp:hover { border-bottom-right-radius: 1.25rem; box-shadow: var(--skugga-hover); text-decoration: none; }
+.knapp.sek { background: #fff; color: #1D1D1D; }
+.knapp.liten { padding: 5px 12px; font-size: .82rem; }
+.knapp.liten:hover { border-bottom-right-radius: .75rem; }
+
+/* ---------- Meddelanden ---------- */
+.ruta { border-radius: var(--radie); padding: 14px 18px; margin-bottom: 18px; border: 1px solid; font-size: .9rem; }
+.ruta.info { background: var(--accent-ljus); border-color: #c7d0ee; }
+.ruta.ok { background: var(--gron-bg); border-color: #c4e0cd; }
+
+/* ---------- Nyckeltal ---------- */
+.nyckeltal { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); border: 1px solid var(--linje); border-radius: var(--radie); background: var(--yta); overflow: hidden; margin-bottom: 16px; }
+.nyckeltal > div { padding: 14px 18px; border-right: 1px solid var(--linje); display: flex; flex-direction: column; gap: 2px; }
+.nyckeltal > div:last-child { border-right: 0; }
+.nyckeltal b { font-size: 1.45rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.nyckeltal b.liten-b { font-size: 1.1rem; line-height: 1.95; }
+.nyckeltal b small { font-size: .8rem; font-weight: 400; color: var(--dampad); }
+
+/* ---------- Status ---------- */
+.statusrad { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin-bottom: 16px; }
+.statusruta { display: flex; flex-direction: column; gap: 2px; padding: 14px 18px; color: var(--text); border-radius: var(--radie); border-left: 4px solid var(--linje2); background: var(--yta2);
+  transition: border-radius .3s ease-in-out, box-shadow .3s ease-in-out; }
+.statusruta:hover { text-decoration: none; border-bottom-right-radius: 2.25rem; box-shadow: var(--skugga-hover); }
+.statusruta b { font-family: var(--serif); font-size: 1.6rem; font-weight: 900; line-height: 1.2; }
+.statusruta.gron { border-left-color: var(--gron); background: var(--gron-bg); }
+.statusruta.gul { border-left-color: var(--gul); background: var(--gul-bg); }
+.statusruta.rod { border-left-color: var(--rod); background: var(--rod-bg); }
+.pill { display: inline-flex; align-items: center; gap: 6px; font-size: .78rem; font-weight: 600; border-radius: 99px; padding: 2px 10px; white-space: nowrap; background: #fff; color: var(--dampad); border: 1px solid var(--linje); }
+.pill .prick { width: 10px; height: 10px; border-radius: 50%; flex: none; border: 1.5px solid var(--svag); }
+.pill.gron { background: var(--gron-bg); color: var(--gron); border-color: transparent; } .pill.gron .prick { background: var(--gron); border-color: var(--gron); }
+.pill.gul { background: var(--gul-bg); color: #7a5c00; border-color: transparent; } .pill.gul .prick { background: var(--gul); border-color: var(--gul); }
+.pill.rod { background: var(--rod-bg); color: var(--rod); border-color: transparent; } .pill.rod .prick { background: var(--rod); border-color: var(--rod); }
+.chip { display: inline-flex; align-items: center; font-size: .74rem; font-weight: 600; border-radius: var(--radie); padding: 1px 8px; margin: 3px 4px 0 0; background: #fff; border: 1px solid var(--linje); color: var(--dampad); white-space: nowrap; }
+.chip.varning { background: var(--gul-bg); color: #7a5c00; border-color: #efdca4; }
+.antal { display: inline-block; min-width: 30px; text-align: center; padding: 1px 6px; margin-right: 3px; font-size: .78rem; font-weight: 700; border-radius: 99px; background: #fff; color: var(--dampad); border: 1px solid var(--linje); }
+.antal.gron { background: var(--gron-bg); color: var(--gron); border-color: transparent; }
+.antal.gul { background: var(--gul-bg); color: #7a5c00; border-color: transparent; }
+.antal.rod { background: var(--rod-bg); color: var(--rod); border-color: transparent; }
+
+/* ---------- Kort och tabeller ---------- */
+.kort { background: var(--yta2); border-radius: var(--radie); padding: 20px 22px; }
+.kort + .kort { margin-top: 16px; }
+.kort > p:last-child { margin: 10px 0 0; }
+.tabell-rull { overflow-x: auto; }
+.tabell { width: 100%; border-collapse: collapse; font-size: .9rem; }
+.tabell th { text-align: left; font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color: var(--dampad); font-weight: 600; line-height: 1.3; padding: 0 10px 8px 0; vertical-align: bottom; }
+.tabell td { border-top: 1px solid var(--linje2); padding: 9px 10px 9px 0; vertical-align: top; }
+.tabell .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tabell th:last-child, .tabell td:last-child { padding-right: 0; }
+.tabell th.num { white-space: normal; }   /* rubriker får brytas, siffrorna inte */
+.tabell tr.summa td { font-weight: 700; border-top: 2px solid var(--text); }
+.tabell tr[hidden] { display: none; }
+/* Breda tabeller på förstasidan: tätare, så att alla kolumner får plats utan rullist */
+.tabell.kompakt { font-size: .86rem; }
+.tabell.kompakt th { font-size: .68rem; letter-spacing: .03em; padding-right: 8px; }
+.tabell.kompakt td { padding-right: 8px; }
+.tabell.kompakt .antal { min-width: 26px; padding: 1px 4px; margin-right: 2px; }
+.tabell .motkrav { padding-left: 22px; }
+.sorterbar th[data-sort] { cursor: pointer; user-select: none; }
+.sorterbar th[data-sort]:hover { color: var(--text); }
+.sorterbar th.stigande, .sorterbar th.fallande { color: var(--text); }
+.sorterbar th.stigande::after { content: " ▲"; } .sorterbar th.fallande::after { content: " ▼"; }
+
+/* ---------- Filter och formulär ---------- */
+.filter { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 14px; }
+input, select, textarea { font: inherit; font-size: .9rem; padding: 6px 9px; border: 1px solid var(--linje2); border-radius: var(--radie); background: #fff; color: var(--text); }
+input:focus, select:focus, textarea:focus { outline: 2px solid var(--orange); outline-offset: 0; border-color: var(--accent); }
+input[type=checkbox] { accent-color: var(--accent); }
+input[type=search] { min-width: 240px; }
+.kryss { display: inline-flex; align-items: center; gap: 6px; font-size: .88rem; }
+.formular { display: flex; flex-direction: column; gap: 18px; max-width: 900px; }
+.formular label { display: flex; flex-direction: column; gap: 4px; font-weight: 600; font-size: .9rem; align-items: flex-start; }
+.formular label span { font-weight: 400; }
+.formular textarea { width: 100%; min-height: 96px; resize: vertical; padding: 9px 11px; }
+.formknappar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding-top: 18px; border-top: 1px solid var(--linje2); }
+.kort-falt { width: 90px; }
+
+/* ---------- Responsivt ---------- */
+@media (max-width: 1100px) {
+  .nyckeltal { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .nyckeltal > div { border-bottom: 1px solid var(--linje); }
+  .statusrad { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 860px) {
+  .app { grid-template-columns: 1fr; }
+  .sidomeny { position: static; height: auto; flex-direction: row; align-items: center; padding: 10px 16px; gap: 12px; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--linje); }
+  .nav { flex-direction: row; }
+  .undernav { flex-direction: row; margin: 0; border-left: 0; }
+  .nav a { white-space: nowrap; }
+  .logga-text, .sidomeny-fot { display: none; }
+  .logga-bild { width: 56px; }
+  .toppfalt { padding: 10px 16px; position: static; }
+  .sida { padding: 20px 16px 48px; }
+  .nyckeltal { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media print {
+  .sidomeny, .toppfalt { display: none !important; }
+  .app { display: block; }
+  .sida { padding: 0; max-width: none; }
+  a { color: inherit; }
+}
+
+/* ---------- Förklaringar (frågetecknet) ---------- */
+.hjalp { display: inline-grid; place-items: center; width: 14px; height: 14px; padding: 0; margin-left: 2px; vertical-align: 1px; border: 1px solid var(--dampad); border-radius: 50%;
+  background: #fff; color: var(--dampad); font: 700 9px/1 "Open Sans", system-ui, sans-serif; letter-spacing: 0; cursor: pointer; }
+.hjalp:hover, .hjalp:focus-visible { background: var(--text); border-color: var(--text); color: #fff; outline: 0; }
+.hjalpruta { position: fixed; inset: auto; margin: 0; width: min(320px, calc(100vw - 24px)); padding: 12px 16px; border: 1px solid var(--linje2); border-radius: var(--radie);
+  background: #fff; color: var(--text); box-shadow: var(--skugga-hover); font-size: .88rem; line-height: 1.5; }
+.hjalpruta b { display: block; font-family: var(--serif); font-weight: 900; font-size: 1rem; margin-bottom: 4px; }
+.hjalpruta p:last-child { margin-bottom: 0; }
+@media print { .hjalp, .tillbakaknapp { display: none; } }
+
+/* ---------- Kundnöjdhet: fastigheten mot HFAB och riket, med föregående år som streck ---------- */
+.kundpaneler { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 16px; }
+.kundpanel { margin: 0; padding: 20px 22px 14px; background: #fff; border-radius: var(--radie); box-shadow: inset 0 3px 0 var(--kungsbla); }
+.kundpanel figcaption { display: grid; grid-template-columns: 1fr auto; align-items: end; gap: 2px 16px; margin-bottom: 18px; }
+.kundpanel figcaption .versal { grid-column: 1 / -1; font-size: .8rem; }
+.kundtal b { font-family: var(--serif); font-weight: 900; font-size: 2.6rem; line-height: 1; letter-spacing: -.02em; }
+.kundtal small { font-size: 1rem; color: var(--dampad); margin-left: 3px; }
+.jmfrad { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+.jmf { font-size: .8rem; font-weight: 600; padding: 2px 10px; border-radius: 99px; background: var(--yta2); color: var(--dampad); white-space: nowrap; }
+.jmf.upp { background: var(--gron-bg); color: var(--gron); }
+.jmf.ner { background: var(--rod-bg); color: var(--rod); }
+.bullet { display: flex; flex-direction: column; gap: 12px; }
+.bgrupp { display: flex; flex-direction: column; gap: 3px; }
+.brad, .baxel { display: grid; grid-template-columns: 92px minmax(0, 1fr) 44px; gap: 12px; align-items: center; }
+.bnamn { font-size: .88rem; color: var(--dampad); }
+.bgrupp.fastighet .bnamn { color: var(--text); font-weight: 700; }
+.bspar { position: relative; height: 16px; border-radius: 0 4px 4px 0; background: #F1F1EE; }
+.bstapel { display: block; height: 100%; min-width: 2px; border-radius: 0 4px 4px 0; background: #8C96A1; }
+.bgrupp.riket .bstapel { background: #B4BBC3; }
+.bgrupp.fastighet .bspar { height: 22px; }
+.bgrupp.fastighet .bstapel { background: var(--kungsbla); }
+.bvarde { text-align: right; font-size: .88rem; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--dampad); }
+.bgrupp.fastighet .bvarde { color: var(--text); font-weight: 700; font-size: .95rem; }
+/* Föregående år: egen, smalare och ljusare stapel under årets, med årtal och värde utskrivna */
+.bgrupp .brad.fore .bnamn { font-size: .76rem; font-weight: 400; color: var(--svag); text-align: right; padding-right: 2px; }
+.bgrupp .brad.fore .bspar { height: 8px; background: transparent; }
+.bgrupp .brad.fore .bstapel { background: #D3D8DD; }
+.bgrupp.riket .brad.fore .bstapel { background: #E2E5E8; }
+.bgrupp.fastighet .brad.fore .bstapel { background: #A9C1DF; }
+.bgrupp .brad.fore .bvarde { font-size: .78rem; font-weight: 400; color: var(--svag); }
+.bgrupp:hover .bstapel { filter: brightness(.94); }
+.baxel > div { display: flex; justify-content: space-between; margin: 0 -8px; }
+.baxel i { width: 16px; text-align: center; font-style: normal; font-size: .7rem; color: var(--svag); font-variant-numeric: tabular-nums; }
+.kundnot { margin: 12px 0 0; max-width: 110ch; }
+
+/* Påhittade uppgifter märks alltid ut: gul etikett, varningsruta och randiga staplar */
+.demo { display: inline-block; vertical-align: middle; background: #F6D019; color: #1E426E; font: 700 .7rem/1.5 "Open Sans", system-ui, sans-serif; letter-spacing: .08em; text-transform: uppercase; padding: 1px 8px; border-radius: var(--radie); }
+.ruta.varning { background: var(--gul-bg); border-color: #efdca4; }
+.kundpaneler.fiktiv .bgrupp.fastighet .bstapel { background: repeating-linear-gradient(135deg, var(--kungsbla) 0 6px, #6f97c9 6px 9px); }
+.kundpaneler.fiktiv .bstapel { background: repeating-linear-gradient(135deg, #9AA3AD 0 6px, #C5CBD1 6px 9px); }
+.kundpaneler.fiktiv .kundpanel { box-shadow: inset 0 3px 0 #F6D019; }
+
+/* ---------- Kartan på förstasidan ---------- */
+.karta { height: 520px; border-radius: var(--radie); background: #E9ECEF; z-index: 0; }
+.karta .leaflet-popup-content { margin: 12px 14px; font: 13px/1.45 "Open Sans", system-ui, sans-serif; color: var(--text); }
+.karta .leaflet-popup-content-wrapper { border-radius: var(--radie); }
+.kartruta b { display: block; font-size: 14px; margin-bottom: 2px; }
+.kartruta dl { display: grid; grid-template-columns: auto auto; gap: 1px 14px; margin: 6px 0 8px; }
+.kartruta dt { color: var(--dampad); } .kartruta dd { margin: 0; text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+.kartforklaring { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: center; margin: 10px 0 0; }
+.kartforklaring span { display: inline-flex; align-items: center; gap: 6px; color: var(--dampad); }
+.kartprick { width: 12px; height: 12px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(0, 0, 0, .25); background: #8a8a8a; }
+.kartprick.gron { background: var(--gron); } .kartprick.gul { background: var(--gul); } .kartprick.rod { background: var(--rod); }
+@media print { .karta { height: 420px; } }
+
+/* ---------- Byggprojekt ---------- */
+.chip.projekt { background: var(--accent-ljus); color: var(--kungsbla); border-color: #c7d0ee; }
+.chip.projekt.pagar { background: #1D1D1D; color: #fff; border-color: #1D1D1D; }
+.kartprick.ring { background: #fff; border: 3px solid var(--kungsbla); box-shadow: none; }
+.kartprick.ring.pagar { border-color: #1D1D1D; }
+.kartprojekt { margin: 0 0 8px; padding-top: 6px; border-top: 1px solid var(--linje); }
+.kartprojekt b { font-size: 13px; }
+
+/* ---------- Investeringsplanen: nyproduktion (orange), förnyelse (cerise), avyttring (mörkgrå) ---------- */
+.invmarke { display: inline-grid; place-items: center; width: 22px; height: 22px; margin: 2px; transform: rotate(45deg); border: 2px solid #fff; border-radius: 3px;
+  background: #F36D30; box-shadow: 0 1px 4px rgba(0, 0, 0, .45); vertical-align: middle; }
+.invmarke b { transform: rotate(-45deg); color: #fff; font: 800 12px/1 "Open Sans", system-ui, sans-serif; font-style: normal; }
+.invmarke.fornyelse { background: #D72E79; }
+.invmarke.avyttring { background: #4A4A4A; }
+.invmarke.liten { width: 14px; height: 14px; margin: 0 5px 0 3px; border-width: 1.5px; box-shadow: none; }
+.invmarke.liten b { font-size: 8px; }
+.chip.inv { background: #FEF0EA; color: #B8430F; border-color: #f8c9b3; }
+.chip.inv.fornyelse { background: #fde4ee; color: #b3205f; border-color: #f6c3d7; }
+.chip.inv.avyttring { background: #ECECEC; color: #333; border-color: var(--linje2); }
+.invband { display: flex; flex-wrap: wrap; align-items: center; gap: 14px 20px; padding: 16px 20px; margin-bottom: 16px; border-radius: var(--radie); background: #FEF0EA; box-shadow: inset 5px 0 0 #F36D30; }
+.invband.fornyelse { background: #fde4ee; box-shadow: inset 5px 0 0 #D72E79; }
+.invband.avyttring { background: #ECECEC; box-shadow: inset 5px 0 0 #4A4A4A; }
+.invband > .invmarke { width: 30px; height: 30px; margin: 4px 6px; }
+.invband > .invmarke b { font-size: 15px; }
+.invband-text { display: flex; flex-direction: column; flex: 1 1 260px; }
+.invband-text > b { font-family: var(--serif); font-weight: 900; font-size: 1.3rem; line-height: 1.25; }
+.invband dl { display: flex; flex-wrap: wrap; gap: 6px 28px; margin: 0; }
+.invband dt { font-size: .76rem; font-weight: 600; color: var(--dampad); }
+.invband dd { margin: 0; font-size: 1.25rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.invband dd small { font-size: .8rem; font-weight: 400; color: var(--dampad); }
+.tabell tr.invrubrik th { padding-top: 16px; color: var(--text); }
+.tabell tr.invrubrik:first-child th { padding-top: 0; }
+
+/* Kryssrutorna under kartan */
+.kartval { display: flex; flex-wrap: wrap; gap: 12px 28px; align-items: flex-start; margin-top: 14px; }
+.kartval fieldset { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; margin: 0; padding: 0; border: 0; min-width: 0; }
+.kartval legend { float: left; width: 100%; padding: 0; margin-bottom: 2px; font-size: .76rem; font-weight: 600; letter-spacing: .02em; color: var(--dampad); }
+.kartval label { display: inline-flex; align-items: center; gap: 6px; font-size: .88rem; cursor: pointer; white-space: nowrap; }
+.kartval label input { margin: 0 2px 0 0; width: 16px; height: 16px; }
+.kartval .invmarke.liten { margin: 0 3px; }
+.kartnyckel { display: inline-flex; align-items: center; gap: 6px; font-size: .8rem; color: var(--dampad); white-space: nowrap; }
+.kartknappar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; align-self: flex-end; margin-left: auto; }
+@media print { .kartknappar { display: none; } }
+
+/* ---------- Sidan Investeringsplan (uppställd som Investeringsanalys i Styrning) ---------- */
+.sidhuvud-rad { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
+.planarsval { margin-bottom: 16px; }
+.kort-rubrik { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 10px; }
+.kort-rubrik h2 { margin: 0; }
+.rutnat-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin: 16px 0; }
+.rutnat-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin: 16px 0; }
+.rutnat-2 > .kort + .kort, .rutnat-3 > .kort + .kort { margin-top: 0; }
+.inv-nyckeltal { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.inv-typ { display: block; color: var(--text); border-top: 4px solid #F36D30; transition: border-radius .3s ease-in-out, box-shadow .3s ease-in-out; }
+.inv-typ:hover { text-decoration: none; border-bottom-right-radius: 2.25rem; box-shadow: var(--skugga-hover); }
+.inv-typ b { display: block; font-size: 1.6rem; font-weight: 600; margin: 4px 0 2px; }
+.inv-typ b small { font-size: .8rem; font-weight: 400; color: var(--dampad); }
+.inv-typ .versal { display: flex; align-items: center; }
+.inv-sektion { border-top: 4px solid #F36D30; }
+.inv-typ.fornyelse, .inv-sektion.fornyelse { border-top-color: #D72E79; }
+.inv-typ.avyttring, .inv-sektion.avyttring { border-top-color: #4A4A4A; }
+.kort .kort-rubrik + .forklaring { margin-top: -4px; }
+.forklaring.mini { margin-bottom: 6px; }
+.ruta-farg { display: inline-block; width: 11px; height: 11px; border-radius: 2px; }
+.invdiagram { width: 100%; height: auto; display: block; }
+.invdiagram .rutnat { stroke: var(--linje2); stroke-width: 1; }
+.invdiagram .baslinje { stroke: var(--svag); stroke-width: 1.5; }
+.invdiagram .axel { fill: var(--dampad); font-size: 11px; }
+.invdiagram .axel.ar { fill: var(--dampad); font-size: 12px; }
+.invdiagram .axel.ar.valt { fill: var(--text); font-weight: 700; }
+.invdiagram .varde { fill: var(--text); font-size: 11.5px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.invdiagram .radnamn { fill: var(--text); font-size: 12px; }
+.invdiagram .valt-ar { fill: #fff; opacity: .85; }
+.invdiagram .traff { fill: transparent; }
+.invdiagram .seg.nyproduktion, .ruta-farg.nyproduktion { fill: #F36D30; background: #F36D30; }
+.invdiagram .seg.fornyelse, .ruta-farg.fornyelse { fill: #D72E79; background: #D72E79; }
+.invdiagram .seg.avyttring, .ruta-farg.avyttring { fill: #4A4A4A; background: #4A4A4A; }
+.invdiagram .seg.minus, .ruta-farg.minus { fill: var(--rod); background: var(--rod); }
+.invdiagram .seg.plus, .ruta-farg.plus { fill: #1E426E; background: #1E426E; }
+.invdiagram g:hover .seg { filter: brightness(1.12); }
+.tidplan-rulla .tidplan { min-width: 760px; }
+.tabell tr.valt td, .tabell th.valt, .tabell td.valt { background: #fff; }
+.arsvarden td, .arsvarden th { font-size: .82rem; padding: 4px 6px; }
+.arsrubrik { margin: 14px 0 4px; font-size: 1rem; }
+details > summary { cursor: pointer; color: var(--accent); }
+.chip.lage-pagar, .chip.lage-fardigstalls { background: var(--accent-ljus); color: var(--kungsbla); border-color: #c7d0ee; }
+.chip.lage-klar, .chip.lage-sald { background: var(--gron-bg); color: var(--gron); border-color: transparent; }
+.chip.lage-saljs { background: #feeadf; }
+@media (max-width: 1100px) { .rutnat-2, .rutnat-3 { grid-template-columns: 1fr; } .inv-nyckeltal { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.forklaring { display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: center; color: var(--dampad); }
+.forklaring span { display: inline-flex; align-items: center; gap: 6px; }
+
+/* ---------- Sidan Projektportfölj ---------- */
+.projektstatus { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+.projektstatus .statusruta { background: #fff; border: 1px solid var(--linje); border-left: 4px solid var(--linje2); }
+.chip.projekt.stangd { background: #F1F1EE; color: var(--dampad); border-color: var(--linje); }
+.invdiagram .seg.inv, .ruta-farg.inv { fill: #2761A6; background: #2761A6; }
+.invdiagram .seg.k3, .ruta-farg.k3 { fill: #7FA6D6; background: #7FA6D6; }
+.invdiagram .seg.opex, .ruta-farg.opex { fill: #8C96A1; background: #8C96A1; }
+.tabell td.andel { width: 22%; min-width: 90px; vertical-align: middle; padding-left: 12px; }
+.tabell td.andel i { display: block; height: 10px; min-width: 2px; border-radius: 0 4px 4px 0; background: var(--kungsbla); }
+.tabell th.andel-rubrik { padding-left: 12px; }
+.rullhojd { max-height: 420px; overflow-y: auto; }

@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+{% block titel %}{{ "AO " ~ vald_ao if vald_ao else "Portföljen" }}{% endblock %}
+{% block huvud %}<link rel="stylesheet" href="{{ statisk('leaflet/leaflet.css') }}">{% endblock %}
+{% block innehall %}
+{% set aoq = '&ao=' ~ vald_ao|urlencode if vald_ao else '' %}
+<div class="sidhuvud">
+  <div class="versal">{% if vald_ao %}<a href="/">Portföljen</a> · {% else %}Fastighetsportfölj · {% endif %}december {{ ar }}</div>
+  <h1>{% if vald_ao %}AO {{ vald_ao }}{% else %}Portföljen – alla fastigheter{% endif %}</h1>
+  <p class="dampad">Varje fastighet prövas mot kraven för sin ålder: avkastning på {{ vardenamn }} och överskottsgrad
+    (driftsnetto exkl. underhåll / intäkter). Ålder räknas inklusive {{ inst.referensar }}.</p>
+</div>
+
+<div class="nyckeltal">
+  <div><span class="versal">Fastigheter</span><b>{{ total.antal }}</b><span class="mini dampad">{{ total.status.ingen }} ej bedömda</span></div>
+  <div><span class="versal">Intäkter</span><b>{{ mnkr(total.intakter) }} <small>mnkr</small></b></div>
+  <div><span class="versal">Driftsnetto</span><b>{{ mnkr(total.driftsnetto) }} <small>mnkr</small></b><span class="mini dampad">exkl. underhåll</span></div>
+  <div><span class="versal">Överskottsgrad {{ hjalp_og() }}</span><b>{{ pct(total.og) }}</b><span class="mini dampad">alla fastigheter{{ ' i affärsområdet' if vald_ao }}</span></div>
+  <div><span class="versal">Avkastning {{ vardekort }} {{ hjalp_avk() }}</span><b>{{ pct(total.avk) }}</b><span class="mini dampad">fastigheter med {{ vardenamn }}</span></div>
+  <div><span class="versal">Värde</span><b>{{ (total.marknad / 1000000)|tal(2) }} <small>mdkr MV</small></b><span class="mini dampad">{{ (total.bokfort / 1000000)|tal(2) }} mdkr bokfört</span></div>
+</div>
+
+<div class="statusrad">
+  {% for s in ['gron', 'gul', 'rod', 'ingen'] %}
+  <a href="/fastigheter?status={{ s }}{{ aoq }}" class="statusruta {{ s }}"><span class="versal">{{ STATUS[s] }}</span><b>{{ total.status[s] }}</b>
+    <span class="mini dampad">{{ pct(total.status[s] / total.antal if total.antal else none, 0) }} av fastigheterna</span></a>
+  {% endfor %}
+</div>
+
+<section class="kort">
+  <h2>Var fastigheterna ligger</h2>
+  {% if karta %}
+  <div id="karta" class="karta" role="application" aria-label="Karta över fastigheterna"></div>
+  <script type="application/json" id="kartdata">{{ karta|tojson }}</script>
+  <script type="application/json" id="invkartdata">{{ invkarta|tojson }}</script>
+  <div class="kartval" role="group" aria-label="Välj vad som visas på kartan">
+    <fieldset><legend>Fastigheter</legend>
+      {% for s in ['gron', 'gul', 'rod', 'ingen'] %}<label><input type="checkbox" data-kartlager="{{ s }}" checked><i class="kartprick {{ s }}"></i>{{ STATUS[s] }}</label>{% endfor %}
+    </fieldset>
+    <fieldset><legend>Investeringsportföljen</legend>
+      {% for t, n in [('nyproduktion', 'Nyproduktion'), ('fornyelse', 'Förnyelse'), ('avyttring', 'Avyttring')] %}<label><input type="checkbox" data-kartlager="{{ t }}" checked><i class="invmarke {{ t }} liten"><b>{{ n[0] }}</b></i>{{ n }}</label>{% endfor %}
+    </fieldset>
+    <fieldset><legend>Byggprojekt</legend>
+      <label><input type="checkbox" data-kartfilter="projekt">Bara fastigheter med byggprojekt</label>
+      <span class="kartnyckel"><i class="kartprick ring pagar"></i>svart kant: pågår</span><span class="kartnyckel"><i class="kartprick ring planerat"></i>blå kant: planerat</span>
+    </fieldset>
+    <div class="kartknappar"><button type="button" class="knapp sek liten" data-kartalla="1">Visa alla</button><button type="button" class="knapp sek liten" data-kartalla="0">Dölj alla</button>
+      <span class="mini dampad" id="kartantal"></span></div>
+  </div>
+  <p class="mini svag kartforklaring">Klicka på en fastighet för nyckeltal.{% if karta_utan %} {{ karta_utan }} fastigheter saknar läge och visas inte{% if platssokning.pagar %} – {{ platssokning.kvar }} slås upp just nu, ladda om sidan om en stund{% endif %}; se <a href="/underlag#karta">Underlag och datakvalitet</a>.{% endif %}
+    Karta: © OpenStreetMap.</p>
+  {% else %}
+  <p class="dampad liten">{% if platssokning.pagar %}Fastigheternas lägen slås upp ({{ platssokning.kvar }} kvar). Ladda om sidan om en stund.{% else %}Inga fastigheter har något läge än. Se <a href="/underlag#karta">Underlag och datakvalitet</a>.{% endif %}</p>
+  {% endif %}
+</section>
+
+<section class="kort">
+  <h2>{{ "Affärsområdet mot kraven" if vald_ao else "Summering per affärsområde" }}</h2>
+  <div class="tabell-rull">
+  <table class="tabell kompakt">
+    <tr><th>Affärsområde</th><th class="num">Fastigheter</th><th class="num">Intäkter</th><th class="num">Driftsnetto</th><th class="num">Bokfört värde</th>
+      <th class="num">Marknadsvärde</th><th class="num">Överskotts&shy;grad {{ hjalp_og() }}</th><th class="num">Gap överskotts&shy;grad</th><th class="num">Avkastning {{ vardekort }} {{ hjalp_avk() }}</th><th class="num">Gap avkastning</th>
+      <th class="motkrav">Mot kraven</th><th class="num">Underskott mot krav</th></tr>
+    {% for ao, s in per_ao %}
+    <tr><td><a href="/fastigheter?ao={{ ao|urlencode }}"><b>{{ ao }}</b></a></td><td class="num">{{ s.antal }}</td><td class="num">{{ tkr(s.intakter) }}</td>
+      <td class="num">{{ tkr(s.driftsnetto) }}</td><td class="num">{{ tkr(s.bokfort) }}</td><td class="num">{{ tkr(s.marknad) }}</td>
+      <td class="num">{{ pct(s.og_provad) }}<div class="mini svag">krav {{ pct(s.krav_og) }}</div></td><td class="num">{{ gap(s.gap_og) }}</td>
+      <td class="num">{{ pct(s.avk_provad) }}<div class="mini svag">krav {{ pct(s.krav_avk) }}</div></td><td class="num">{{ gap(s.gap_avk) }}</td>
+      <td class="nowrap motkrav">{% for k in ['gron', 'gul', 'rod', 'ingen'] %}<span class="antal {{ k }}" title="{{ STATUS[k] }}">{{ s.status[k] }}</span>{% endfor %}</td>
+      <td class="num">{{ diff(s.underskott if s.underskott else none) }}</td></tr>
+    {% endfor %}
+    {% if not vald_ao %}<tr class="summa"><td>Totalt</td><td class="num">{{ total.antal }}</td><td class="num">{{ tkr(total.intakter) }}</td><td class="num">{{ tkr(total.driftsnetto) }}</td>
+      <td class="num">{{ tkr(total.bokfort) }}</td><td class="num">{{ tkr(total.marknad) }}</td>
+      <td class="num">{{ pct(total.og_provad) }}<div class="mini svag">krav {{ pct(total.krav_og) }}</div></td><td class="num">{{ gap(total.gap_og) }}</td>
+      <td class="num">{{ pct(total.avk_provad) }}<div class="mini svag">krav {{ pct(total.krav_avk) }}</div></td><td class="num">{{ gap(total.gap_avk) }}</td>
+      <td class="nowrap motkrav">{% for k in ['gron', 'gul', 'rod', 'ingen'] %}<span class="antal {{ k }}" title="{{ STATUS[k] }}">{{ total.status[k] }}</span>{% endfor %}</td>
+      <td class="num">{{ diff(total.underskott if total.underskott else none) }}</td></tr>{% endif %}
+  </table>
+  </div>
+  <p class="mini svag">Belopp i tkr, gap i procentenheter. Kraven är vägda med intäkter respektive {{ vardenamn }} för de fastigheter som kan prövas.
+    Överskottsgrad och avkastning i tabellen avser de fastigheter som kan prövas mot krav (har byggår samt intäkter respektive {{ vardenamn }}), så att utfall, krav och gap räknas på samma fastigheter. Nyckeltalen överst avser alla fastigheter. Underskott mot krav = summan av det driftsnetto som saknas upp till det strängaste av de två kraven,
+    för fastigheter som ligger under.</p>
+</section>
+
+<section class="kort">
+  <h2>Summering per åldersklass</h2>
+  <div class="tabell-rull">
+  <table class="tabell kompakt">
+    <tr><th>Åldersklass</th><th>Byggår</th><th class="num">Krav avkastning</th><th class="num">Krav överskotts&shy;grad</th><th class="num">Fastigheter</th><th class="num">Intäkter</th>
+      <th class="num">Driftsnetto</th><th class="num">{{ vardenamn|capitalize }}</th><th class="num">Överskotts&shy;grad {{ hjalp_og() }}</th><th class="num">Gap överskotts&shy;grad</th><th class="num">Avkastning {{ vardekort }} {{ hjalp_avk() }}</th>
+      <th class="num">Gap avkastning</th><th class="motkrav">Mot kraven</th><th class="num">Underskott mot krav</th></tr>
+    {% for k, s in per_klass %}{% if k is not none or s.antal %}
+    <tr><td><a href="/fastigheter?klass={{ k if k is not none else '-' }}{{ aoq }}"><b>{{ klassnamn[k] if k is not none else 'Byggår saknas' }}</b></a></td>
+      <td class="liten nowrap">{{ byggar_intervall[k] if k is not none else '–' }}</td>
+      <td class="num">{{ pct(inst.klasser[k].krav_avk, 0) if k is not none else '–' }}</td><td class="num">{{ pct(inst.klasser[k].krav_og, 0) if k is not none else '–' }}</td>
+      <td class="num">{{ s.antal }}</td><td class="num">{{ tkr(s.intakter) }}</td><td class="num">{{ tkr(s.driftsnetto) }}</td>
+      <td class="num">{{ tkr(s.bokfort if inst.vardebas == 'bokfort' else s.marknad) }}</td>
+      <td class="num">{{ pct(s.og_provad if k is not none else s.og) }}</td><td class="num">{{ gap(s.gap_og) }}</td><td class="num">{{ pct(s.avk_provad if k is not none else s.avk) }}</td><td class="num">{{ gap(s.gap_avk) }}</td>
+      <td class="nowrap motkrav">{% for x in ['gron', 'gul', 'rod', 'ingen'] %}<span class="antal {{ x }}" title="{{ STATUS[x] }}">{{ s.status[x] }}</span>{% endfor %}</td>
+      <td class="num">{{ diff(s.underskott if s.underskott else none) }}</td></tr>
+    {% endif %}{% endfor %}
+  </table>
+  </div>
+  <p class="mini svag">Kraven ändras under <a href="/krav">Krav per ålder</a>. Fastigheter utan byggår kan inte prövas; byggår kan kompletteras på fastigheten.</p>
+</section>
+
+{% if not vald_ao %}
+<section class="kort">
+  <h2>Affärsområde och åldersklass</h2>
+  <p class="dampad liten">Antal fastigheter och underskott mot krav (tkr) i varje ruta.</p>
+  <div class="tabell-rull">
+  <table class="tabell kompakt">
+    <tr><th>Affärsområde</th>{% for k in klasser %}<th class="num">{{ klassnamn[k] if k is not none else 'Byggår saknas' }}</th>{% endfor %}</tr>
+    {% for ao in aos %}
+    <tr><td><b>{{ ao }}</b></td>
+      {% for k in klasser %}{% set s = matris[(ao, k)] %}
+      <td class="num">{% if s.antal %}<a href="/fastigheter?ao={{ ao|urlencode }}&klass={{ k if k is not none else '-' }}">{{ s.antal }} st</a>
+        <div class="mini">{{ diff(s.underskott if s.underskott else none) }}</div>{% else %}<span class="svag">–</span>{% endif %}</td>
+      {% endfor %}</tr>
+    {% endfor %}
+  </table>
+  </div>
+</section>
+{% endif %}
+
+<section class="kort">
+  <h2>Störst underskott mot kraven</h2>
+  <div class="tabell-rull">
+  <table class="tabell kompakt">
+    <tr><th>Fastighet</th><th>AO</th><th>Åldersklass</th><th class="num">Driftsnetto</th><th class="num">Överskotts&shy;grad {{ hjalp_og() }}</th><th class="num">Avkastning {{ vardekort }} {{ hjalp_avk() }}</th>
+      <th class="num">Driftsnetto mot krav</th><th>Status</th></tr>
+    {% for r in samst %}
+    <tr><td><a href="/fastighet/{{ r.kod }}"><b>{{ r.kod }} {{ r.namn }}</b></a></td><td class="liten">{{ r.ao }}</td><td class="liten">{{ r.klassnamn }}</td>
+      <td class="num">{{ tkr(r.driftsnetto) }}</td><td class="num">{{ pct(r.og) }}<div class="mini svag">krav {{ pct(r.krav_og, 0) }}</div></td>
+      <td class="num">{{ pct(r.avk) }}<div class="mini svag">krav {{ pct(r.krav_avk, 0) }}</div></td><td class="num">{{ diff(r.dn_mot_krav) }}</td><td>{{ pill(r.status) }}</td></tr>
+    {% else %}<tr><td colspan="8" class="svag">Ingen fastighet ligger under kraven.</td></tr>
+    {% endfor %}
+  </table>
+  </div>
+  <p class="mini svag"><a href="/fastigheter{{ '?ao=' ~ vald_ao|urlencode if vald_ao }}">Visa alla fastigheter{{ ' i AO ' ~ vald_ao if vald_ao }}</a></p>
+</section>
+
+{% if investeringar %}
+<section class="kort" id="investeringsplan">
+  <h2>Investeringsportföljen{% if vald_ao %} – AO {{ vald_ao }}{% endif %}</h2>
+  <div class="tabell-rull">
+  <table class="tabell kompakt">
+    {% for typ, rubrik, volymrubrik, hyrrubrik in [('nyproduktion', 'Nyproduktion', 'Investering', 'Ny hyra per år'), ('fornyelse', 'Förnyelse', 'Investering', 'Hyreshöjning per år'), ('avyttring', 'Avyttring', 'Försäljningspris', 'Hyra som faller bort')] %}
+    {% set lista = investeringar|selectattr('typ', 'equalto', typ)|list %}
+    {% if lista %}
+    <tr class="invrubrik"><th><span class="invmarke {{ typ }} liten"><b>{{ rubrik[0] }}</b></span> {{ rubrik }}</th><th>Period</th><th class="num">{{ volymrubrik }}</th><th class="num">{{ hyrrubrik }}</th><th>Fastigheter i portföljen</th></tr>
+    {% for p in lista %}
+    <tr><td><b>{{ p.namn }}</b></td><td class="nowrap">{{ p.period }}</td><td class="num">{{ (p.volym / 1000)|tal(1) }}</td><td class="num">{{ (p.hyra / 1000)|tal(1) }}</td>
+      <td class="liten">{% for k in p.koder %}<a href="/fastighet/{{ k }}">{{ k }}</a>{{ ', ' if not loop.last }}{% else %}<span class="svag">{{ 'ny fastighet' if typ == 'nyproduktion' else 'inte kopplad' }}</span>{% endfor %}{% if not p.plats %} <span class="chip varning">saknar plats på kartan</span>{% endif %}</td></tr>
+    {% endfor %}
+    <tr class="summa"><td>Summa {{ rubrik|lower }}</td><td></td><td class="num">{{ (lista|sum(attribute='volym') / 1000)|tal(1) }}</td><td class="num">{{ (lista|sum(attribute='hyra') / 1000)|tal(1) }}</td><td></td></tr>
+    {% endif %}
+    {% endfor %}
+  </table>
+  </div>
+  <p class="mini svag">Belopp i mnkr. Ur investeringsanalysen i Styrning (Budgetberäkning 2027). Kopplingen till fastigheter och platsen på kartan är antaganden utifrån projektens namn
+    och ändras under <a href="/underlag#investeringsplan">Underlag och datakvalitet</a>.
+    <a href="/investeringsportfolj">Hela investeringsportföljen med diagram och tidplan</a></p>
+</section>
+
+{% endif %}
+{% endblock %}
+{% block skript %}<script src="{{ statisk('leaflet/leaflet.js') }}"></script>{% endblock %}

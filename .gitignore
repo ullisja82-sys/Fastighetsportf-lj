@@ -1,0 +1,5 @@
+__pycache__/
+.env
+*.xlsx
+*.xls
+app/portfolj/investeringsplan_data.py

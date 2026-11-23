@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% block titel %}{{ r.kod }} {{ r.namn }}{% endblock %}
+{% block innehall %}
+<div class="sidhuvud">
+  <div class="versal"><a href="/fastigheter">Fastigheter</a> · <a href="/fastigheter?ao={{ r.ao|urlencode }}">{{ r.ao }}</a></div>
+  <h1>{{ r.kod }} {{ r.namn }}</h1>
+  <p>{{ pill(r.status) }} {{ invchip(r.kod) }}{{ projektchip(r.kod) }}{% for f in r.flaggor %}<span class="chip varning">{{ f }}</span>{% endfor %}</p>
+</div>
+{% if sparat %}<div class="ruta ok">Ändringen är sparad.</div>{% endif %}
+{% for p in inv_per_fastighet.get(r.kod, []) %}
+<div class="invband {{ p.typ }}">
+  <span class="invmarke {{ p.typ }}"><b>{{ p.typnamn[0] }}</b></span>
+  <div class="invband-text"><span class="versal">{{ p.typnamn }} i investeringsportföljen</span>
+    <b>{{ p.namn }} · {{ p.period }}</b>
+    {% if p.koder|length > 1 %}<span class="mini">Gäller även {% for k in p.koder if k != r.kod %}<a href="/fastighet/{{ k }}">{{ k }}</a>{{ ', ' if not loop.last }}{% endfor %}. Beloppen avser hela projektet.</span>{% endif %}</div>
+  <dl>
+    <div><dt>{{ 'Försäljningspris' if p.typ == 'avyttring' else 'Investering' }}</dt><dd>{{ (p.volym / 1000)|tal(1) }} <small>mnkr</small></dd></div>
+    <div><dt>{{ 'Hyra som faller bort' if p.typ == 'avyttring' else 'Hyreshöjning per år' if p.typ == 'fornyelse' else 'Ny hyra per år' }}</dt><dd>{{ (p.hyra / 1000)|tal(1) }} <small>mnkr</small></dd></div>
+    <div><dt>{{ 'Avyttras' if p.typ == 'avyttring' else 'Klart' }}</dt><dd>{{ p.klar }}</dd></div>
+  </dl>
+</div>
+{% endfor %}
+
+<div class="nyckeltal">
+  <div><span class="versal">Byggår</span><b>{{ r.byggar or '–' }}</b><span class="mini dampad">{% if r.alder is not none %}{{ r.alder }} år inkl. {{ inst.referensar }}{% else %}ålder okänd{% endif %}</span></div>
+  <div><span class="versal">Åldersklass</span><b class="liten-b">{{ r.klassnamn }}</b></div>
+  <div><span class="versal">Yta</span><b>{{ r.boa_loa|tal(0) }} <small>kvm</small></b><span class="mini dampad">BOA + LOA</span></div>
+  <div><span class="versal">Lägenheter</span><b>{{ r.lgh|tal(0) }}</b><span class="mini dampad">{{ r.lokaler|tal(0) }} lokaler</span></div>
+  <div><span class="versal">Bokfört värde</span><b>{{ mnkr(r.bokfort) }} <small>mnkr</small></b></div>
+  <div><span class="versal">Marknadsvärde</span><b>{{ mnkr(r.marknad) }} <small>mnkr</small></b></div>
+</div>
+
+<section class="kort">
+  <h2>Utfall mot krav {{ ar }}</h2>
+  <div class="tabell-rull">
+  <table class="tabell">
+    <tr><th>Mått</th><th class="num">Utfall</th><th class="num">Krav</th><th class="num">Gap</th><th class="num">Driftsnetto enligt krav</th><th class="num">Driftsnetto mot krav</th></tr>
+    <tr><td><b>Överskottsgrad</b><div class="mini dampad">driftsnetto exkl. underhåll / intäkter</div></td><td class="num">{{ pct(r.og) }}</td><td class="num">{{ pct(r.krav_og, 0) }}</td>
+      <td class="num">{{ gap(r.gap_og) }}</td><td class="num">{{ tkr(r.dn_krav_og) }}</td>
+      <td class="num">{{ diff(r.driftsnetto - r.dn_krav_og if r.dn_krav_og is not none else none) }}</td></tr>
+    <tr><td><b>Avkastning på {{ vardenamn }}</b><div class="mini dampad">driftsnetto exkl. underhåll / {{ vardenamn }}</div></td><td class="num">{{ pct(r.avk) }}</td>
+      <td class="num">{{ pct(r.krav_avk, 0) }}</td><td class="num">{{ gap(r.gap_avk) }}</td><td class="num">{{ tkr(r.dn_krav_avk) }}</td>
+      <td class="num">{{ diff(r.driftsnetto - r.dn_krav_avk if r.dn_krav_avk is not none else none) }}</td></tr>
+  </table>
+  </div>
+  <p class="mini svag">Belopp i tkr, gap i procentenheter. {% if r.klass is none %}Fastigheten saknar byggår och har därför inga krav. Fyll i byggår nedan.{% endif %}</p>
+</section>
+
+{% if projekt.get(r.kod) %}
+<section class="kort" id="projekt">
+  <h2>Byggprojekt</h2>
+  <div class="tabell-rull">
+  <table class="tabell">
+    <tr><th>Projekt</th><th>Status</th><th>Förväntat slut</th><th>Projektledare</th><th class="num">Budget, tkr</th></tr>
+    {% for p in projekt[r.kod] %}
+    <tr><td><b>{{ p.namn }}</b>{% if p.nummer %}<div class="mini svag">{{ p.nummer }}</div>{% endif %}</td>
+      <td><span class="chip projekt {{ p.lage }}">{{ p.status }}</span></td><td class="nowrap">{{ p.slut or '–' }}</td><td>{{ p.projektledare or '–' }}</td>
+      <td class="num">{{ (p.belopp / 1000)|tal(0) if p.belopp is not none else '–' }}</td></tr>
+    {% endfor %}
+  </table>
+  </div>
+  <p class="mini svag">Ur projektlistan {{ projekt.filnamn }}. Budget = total capex och opex i listan. Avslutade och avbrutna projekt visas inte.</p>
+</section>
+
+{% endif %}
+<section class="kort">
+  <h2>Kundnöjdhet {{ ar }}{% if kund_fiktiv %} <span class="demo">Fiktiva siffror</span>{% endif %}</h2>
+  {% if kund_fiktiv %}<div class="ruta varning"><b>OBS! Siffrorna nedan är påhittade.</b> De visar bara hur diagrammet kommer att se ut och säger ingenting om fastigheten, HFAB eller riket.
+    De ersätts av de riktiga när kundundersökningen från AktivBo är inläst.</div>{% endif %}
+  {% if kundmatt %}
+  {% macro jmf(v, text) -%}{% if v is not none %}<span class="jmf {{ 'upp' if v > 0.05 else 'ner' if v < -0.05 else '' }}">{{ '▲' if v > 0.05 else '▼' if v < -0.05 else '●' }} {{ '+' if v > 0.05 }}{{ v|tal(1) }} mot {{ text }}</span>{% endif %}{%- endmacro %}
+  <div class="kundpaneler {{ 'fiktiv' if kund_fiktiv }}">
+    {% for m in kundmatt %}
+    <figure class="kundpanel" aria-label="{{ m.namn }} {{ ar }}: fastigheten jämförd med HFAB, riket och {{ ar - 1 }}">
+      <figcaption>
+        <span class="versal">{{ m.namn }}{% if kund_fiktiv %} <span class="demo">Fiktivt</span>{% endif %}</span>
+        <span class="kundtal"><b>{{ m.nu|tal(1) }}</b>{% if m.nu is not none %}<small>%</small>{% endif %}</span>
+        <span class="jmfrad">{{ jmf(m.mot_hfab, 'HFAB') }}{{ jmf(m.andring, ar - 1) }}</span>
+      </figcaption>
+      <div class="bullet">
+        {% for x in m.rader %}
+        <div class="bgrupp {{ x.niva }}" title="{{ 'FIKTIVT – ' if kund_fiktiv }}{{ x.etikett }}: {{ x.nu|tal(1) }} % {{ ar }}{% if x.fore is not none %}, {{ x.fore|tal(1) }} % {{ ar - 1 }}{% endif %}">
+          <div class="brad">
+            <span class="bnamn">{{ x.etikett }}</span>
+            <div class="bspar">{% if x.nu is not none %}<i class="bstapel" style="width:{{ [[x.nu, 0]|max, 100]|min }}%"></i>{% endif %}</div>
+            <b class="bvarde">{{ x.nu|tal(1) }}</b>
+          </div>
+          {% if x.fore is not none %}
+          <div class="brad fore">
+            <span class="bnamn">{{ ar - 1 }}</span>
+            <div class="bspar"><i class="bstapel" style="width:{{ [[x.fore, 0]|max, 100]|min }}%"></i></div>
+            <span class="bvarde">{{ x.fore|tal(1) }}</span>
+          </div>
+          {% endif %}
+        </div>
+        {% endfor %}
+        <div class="baxel" aria-hidden="true"><span></span><div><i>0</i><i>25</i><i>50</i><i>75</i><i>100</i></div><span></span></div>
+      </div>
+    </figure>
+    {% endfor %}
+  </div>
+  <p class="mini svag kundnot">Andel nöjda hyresgäster i procent.{% if kundmatt[0].rader|selectattr('fore', 'ne', none)|list %} Den ljusare stapeln under varje rad är {{ ar - 1 }}.{% endif %}
+    {% if kund_fiktiv %}Fiktiva siffror – inte från AktivBo.{% else %}Källa: AktivBo.{% endif %}
+    {% if hfab_beraknad and not kund_fiktiv %}HFAB är räknat ur de {{ hfab_beraknad }} enheterna i AktivBo-filen, vägt med antal svar.{% endif %}
+    {% if kundmatt[0].saknas %}Finns inte i de inlästa filerna: {{ kundmatt[0].saknas|join(', ') }}.{% endif %}
+    {% if kundenheter|length > 1 %}AktivBo redovisar fastigheten i {{ kundenheter|length }} delar som är sammanvägda efter antal svar:
+    {% for n, v in kundenheter %}{{ n }} (service {{ v.serviceindex|tal(1) }}, produkt {{ v.produktindex|tal(1) }}){{ '; ' if not loop.last else '.' }}{% endfor %}{% endif %}</p>
+  {% else %}
+  <p class="dampad liten">Fastigheten har ingen mätning i kundundersökningen för {{ ar }} eller {{ ar - 1 }}.</p>
+  {% endif %}
+</section>
+
+<section class="kort">
+  <h2>År för år</h2>
+  <div class="tabell-rull">
+  <table class="tabell">
+    <tr><th>År</th><th class="num">Intäkter</th><th class="num">Driftsnetto</th><th class="num">Avskrivningar</th><th class="num">Resultat</th><th class="num">ÖG</th>
+      <th class="num">Avk. BV</th><th class="num">Avk. MV</th><th class="num">Driftsnetto/kvm</th><th>Status</th></tr>
+    {% for a, x in per_ar %}
+    <tr><td><b>{{ a }}</b></td><td class="num">{{ tkr(x.intakter) }}</td><td class="num">{{ tkr(x.driftsnetto) }}</td><td class="num">{{ tkr(x.avskrivningar) }}</td>
+      <td class="num">{{ tkr(x.resultat) }}</td><td class="num">{{ pct(x.og) }}</td><td class="num">{{ pct(x.avk_bv) }}</td><td class="num">{{ pct(x.avk_mv) }}</td>
+      <td class="num">{{ x.dn_kvm|tal(0) }}</td><td>{{ pill(x.status) }}</td></tr>
+    {% endfor %}
+  </table>
+  </div>
+  <p class="mini svag">Belopp i tkr, driftsnetto/kvm i kr. {% if r.lanat %}Värden och ytor som saknas i ett års underlag är hämtade från närmaste år.{% endif %}</p>
+</section>
+
+<section class="kort">
+  <h2>Komplettera</h2>
+  <form method="post" class="formular">
+    <label>Byggår
+      <input type="text" name="byggar" inputmode="numeric" pattern="[0-9]{4}" value="{{ just.byggar if just and just.byggar else '' }}" placeholder="{{ r.byggar_underlag or 'saknas i underlaget' }}">
+      <span class="mini dampad">Underlaget anger {{ r.byggar_underlag or 'inget byggår' }}. Ett årtal här ersätter underlagets; lämna tomt för att använda underlagets.</span></label>
+    <label>Adress för kartan
+      <input type="text" name="kartadress" value="{{ plats.adress if plats and plats.egen else '' }}" placeholder="{{ plats.adress if plats and plats.adress else 'ingen adress hittad i namnet' }}" style="width:min(420px,100%)">
+      <span class="mini dampad">{% if plats and plats.lat is not none %}Fastigheten visas på kartan{% if not plats.egen %} med adressen ur namnet ({{ plats.adress }}){% endif %}.{% elif plats %}Adressen{% if plats.adress %} ”{{ plats.adress }}”{% endif %} hittades inte på kartan.{% else %}Läget är inte uppslaget än.{% endif %}
+        Skriv gata och nummer, t.ex. ”Kungsgatan 7” eller ”Mossegatan 8, Oskarström”. Det går också att klistra in koordinater från Google Maps, t.ex. ”56.66400, 12.76200”. Lämna tomt för att använda adressen ur fastighetens namn.</span></label>
+    <label>Anteckning
+      <textarea name="anteckning" rows="3">{{ r.anteckning }}</textarea></label>
+    <div class="formknappar"><button class="knapp">Spara</button>{% if just and just.andrad %} <span class="mini dampad">Senast ändrad {{ just.andrad }}</span>{% endif %}</div>
+  </form>
+</section>
+{% endblock %}

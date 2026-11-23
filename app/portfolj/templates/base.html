@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block titel %}{% endblock %} · HFAB Fastighetsportfölj</title>
+  <link rel="stylesheet" href="{{ statisk('app.css') }}">
+  {% block huvud %}{% endblock %}
+</head>
+<body>
+{% macro tkr(v) -%}{{ v|tal(0) }}{%- endmacro %}
+{% macro mnkr(v) -%}{% if v is none %}–{% else %}{{ (v / 1000)|tal(1) }}{% endif %}{%- endmacro %}
+{% macro pct(v, d=1) -%}{% if v is none %}–{% else %}{{ (v * 100)|tal(d) }} %{% endif %}{%- endmacro %}
+{% macro gap(v) -%}{% if v is none %}<span class="svag">–</span>{% else %}<span class="{{ 'pos' if v >= 0 else 'neg' }}">{{ '+' if v > 0 }}{{ (v * 100)|tal(1) }}</span>{% endif %}{%- endmacro %}
+{% macro diff(v) -%}{% if v is none %}<span class="svag">–</span>{% else %}<span class="{{ 'pos' if v >= 0 else 'neg' }}">{{ '+' if v > 0 }}{{ v|tal(0) }}</span>{% endif %}{%- endmacro %}
+{% macro hjalp(id, text) -%}<button type="button" class="hjalp" popovertarget="{{ id }}" aria-label="{{ text }}" title="{{ text }}">?</button>{%- endmacro %}
+{% macro hjalp_og() -%}{{ hjalp('hjalp-og', 'Så räknas överskottsgraden') }}{%- endmacro %}
+{% macro hjalp_avk() -%}{{ hjalp('hjalp-avk', 'Så räknas avkastningen') }}{%- endmacro %}
+{% macro projektchip(kod) -%}{% set l = projekt.lage(kod) %}{% if l %}<span class="chip projekt {{ l }}" title="{% for p in projekt[kod] %}{{ p.namn }} ({{ p.status|lower }}){{ ' · ' if not loop.last }}{% endfor %}">{{ PROJEKTLAGE[l] }}{% if projekt[kod]|length > 1 %} · {{ projekt[kod]|length }}{% endif %}</span>{% endif %}{%- endmacro %}
+{% macro invchip(kod) -%}{% for p in inv_per_fastighet.get(kod, []) %}<span class="chip inv {{ p.typ }}" title="{{ p.namn }} – investeringsportföljen">{{ p.typnamn }} {{ p.period }}</span>{% endfor %}{%- endmacro %}
+{% macro pill(s) -%}<span class="pill {{ s }}"><span class="prick"></span>{{ STATUS[s] }}</span>{%- endmacro %}
+<div class="app">
+  <aside class="sidomeny">
+    <a class="logga" href="/" aria-label="HFAB Fastighetsportfölj – till Portföljen">
+      <img class="logga-bild" src="{{ statisk('hfab-logga.svg') }}" alt="HFAB" width="86" height="40">
+      <span class="logga-text"><b>Fastighetsportfölj</b><span>Avkastning och överskottsgrad</span></span>
+    </a>
+    <nav class="nav" aria-label="Huvudmeny">
+      <a href="/" class="{{ 'aktiv' if nav == 'oversikt' and not vald_ao }} {{ 'oppen' if (nav == 'oversikt' and vald_ao) or nav in ('investeringsplan', 'projektportfolj') }}" {% if nav == 'oversikt' and not vald_ao %}aria-current="page"{% endif %} title="Hela portföljen – alla affärsområden">
+        <svg viewBox="0 0 24 24"><path d="M3 12l9-8 9 8M5 10v10h14V10"/></svg><span class="text">Portföljen</span></a>
+      {% if meny_ao %}
+      <div class="undernav" aria-label="Affärsområden">
+        {% for a in meny_ao %}<a href="/?ao={{ a|urlencode }}" class="{{ 'aktiv' if nav == 'oversikt' and vald_ao == a }}" {% if nav == 'oversikt' and vald_ao == a %}aria-current="page"{% endif %}>AO {{ a }}</a>
+        {% endfor %}
+        <a href="/investeringsportfolj" class="{{ 'aktiv' if nav == 'investeringsplan' }}" {% if nav == 'investeringsplan' %}aria-current="page"{% endif %}>Investeringsportfölj</a>
+        <a href="/projektportfolj" class="{{ 'aktiv' if nav == 'projektportfolj' }}" {% if nav == 'projektportfolj' %}aria-current="page"{% endif %}>Projektportfölj</a>
+      </div>
+      {% endif %}
+      {% set i_fast = nav in ('fastigheter', 'fastighet') %}
+      <a href="/fastigheter" class="{{ 'aktiv' if i_fast and not vald_ao }} {{ 'oppen' if i_fast and vald_ao }}" {% if nav == 'fastigheter' and not vald_ao %}aria-current="page"{% endif %} title="Alla fastigheter">
+        <svg viewBox="0 0 24 24"><path d="M4 21V5h10v16M14 10h6v11M2 21h20M7.5 9h3M7.5 13h3M7.5 17h3M17 14v0M17 17.5v0"/></svg><span class="text">Fastigheter</span></a>
+      {% if meny_ao or meny_odefinierat %}
+      <div class="undernav" id="undernav-fastigheter" aria-label="Fastigheter per affärsområde">
+        {% for a in meny_ao + ([meny_odefinierat] if meny_odefinierat else []) %}<a href="/fastigheter?ao={{ a|urlencode }}" data-ao="{{ a }}" class="{{ 'aktiv' if i_fast and vald_ao == a }}">{{ 'AO ' if a != meny_odefinierat }}{{ a }}</a>
+        {% endfor %}
+      </div>
+      {% endif %}
+      <a href="/krav" class="{{ 'aktiv' if nav == 'krav' }}" {% if nav == 'krav' %}aria-current="page"{% endif %}>
+        <svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg><span class="text">Krav per ålder</span></a>
+      <a href="/underlag" class="{{ 'aktiv' if nav == 'underlag' }}" {% if nav == 'underlag' %}aria-current="page"{% endif %}>
+        <svg viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 13h7M9 17h7"/></svg><span class="text">Underlag och datakvalitet</span></a>
+    </nav>
+    <div class="sidomeny-fot">Prototyp. Belopp i tkr där inget annat anges.</div>
+  </aside>
+
+  <main class="innehall">
+    <header class="toppfalt">
+      <div class="toppfalt-vanster">
+      <a class="knapp sek liten tillbakaknapp" id="tillbakaknapp" href="javascript:history.back()" hidden title="Till sidan du kom från">← Tillbaka</a>
+      {% if not dolj_arsval %}
+      <div class="arsval"><span class="versal">Underlag december</span>
+        <nav aria-label="Välj år">{% for a in aren %}<a href="{{ sokvag }}?ar={{ a }}{{ arfraga }}" class="{{ 'aktiv' if a == ar }}" {% if a == ar %}aria-current="true"{% endif %}>{{ a }}</a>{% endfor %}</nav>
+      </div>
+      {% endif %}
+      </div>
+      <div class="toppfalt-hoger">
+        {% if not dolj_arsval %}<a class="knapp sek liten" href="/export.xlsx?ar={{ ar }}">Exportera till Excel</a>{% endif %}
+      </div>
+    </header>
+    <div class="sida">
+      {% if lanat and not dolj_arsval %}<div class="ruta info">{% for fran, falt in lanat.items() %}Underlaget för {{ ar }} saknar {{ falt|join(', ') }}. De uppgifterna är hämtade från {{ fran }} års fil. {% endfor %}</div>{% endif %}
+      {% block innehall %}{% endblock %}
+<div id="hjalp-og" popover class="hjalpruta">
+  <b>Överskottsgrad</b>
+  <p>Driftsnetto exkl. underhåll / intäkter. För en grupp räknas den på summorna, inte som medelvärde.</p>
+  <p>Krav: {% for k in inst.klasser %}{{ klassnamn[loop.index0]|lower }} {{ pct(k.krav_og, 0) }}{{ ', ' if not loop.last else '.' }}{% endfor %}
+    Gap = utfall minus krav i procentenheter.</p>
+</div>
+<div id="hjalp-avk" popover class="hjalpruta">
+  <b>Avkastning {{ vardekort }}</b>
+  <p>Driftsnetto exkl. underhåll / {{ vardenamn }}. För en grupp räknas den på summorna, inte som medelvärde.</p>
+  <p>Krav: {% for k in inst.klasser %}{{ klassnamn[loop.index0]|lower }} {{ pct(k.krav_avk, 0) }}{{ ', ' if not loop.last else '.' }}{% endfor %}
+    Gap = utfall minus krav i procentenheter.</p>
+</div>
+    </div>
+  </main>
+</div>
+{% block skript %}{% endblock %}
+<script src="{{ statisk('app.js') }}"></script>
+</body>
+</html>

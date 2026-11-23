@@ -1,0 +1,27 @@
+name: fastighetsportfolj
+
+# HFAB Fastighetsportfölj
+#   8405 = webbapplikationen
+# Underlagen (Excel) läses från ./Underlag, kundundersökningen (AktivBo) från ./Kundundersökning. Justeringar och kravnivåer sparas i volymen portfoljdata.
+
+services:
+  web:
+    build: ./app
+    command: uvicorn portfolj.main:app --host 0.0.0.0 --port 8405
+    environment:
+      UNDERLAG_DIR: /underlag
+      KUND_DIR: /kund
+      PROJEKT_DIR: /projekt
+      DATA_DIR: /data
+    volumes:
+      - ./Underlag:/underlag:ro
+      - ./Kundundersökning:/kund:ro
+      - ./Projekt:/projekt:ro
+      - portfoljdata:/data
+    ports:
+      # Appen saknar inloggning. Sätt BIND_ADDRESS=127.0.0.1 i .env för att bara nå den från servern.
+      - "${BIND_ADDRESS:-0.0.0.0}:8405:8405"
+    restart: unless-stopped
+
+volumes:
+  portfoljdata:

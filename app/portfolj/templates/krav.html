@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block titel %}Krav per ålder{% endblock %}
+{% block innehall %}
+<div class="sidhuvud">
+  <div class="versal">Fastighetsportfölj</div>
+  <h1>Krav per ålder</h1>
+  <p class="dampad">Kraven på avkastning och överskottsgrad bestäms av fastighetens ålder. Ålder = referensår − byggår + 1, det vill säga inklusive referensåret.</p>
+</div>
+{% if sparat %}<div class="ruta ok">Kraven är sparade och gäller i hela appen.</div>{% endif %}
+
+<section class="kort">
+  <form method="post" class="formular">
+    <div class="tabell-rull">
+    <table class="tabell">
+      <tr><th>Åldersklass</th><th>Byggår</th><th>Ålder till och med</th><th>Avkastningskrav</th><th>Krav överskottsgrad</th><th class="num">Fastigheter {{ ar }}</th></tr>
+      {% for k in inst.klasser %}
+      <tr><td><b>{{ klassnamn[loop.index0] }}</b></td><td class="liten nowrap">{{ byggar_intervall[loop.index0] }}</td>
+        <td>{% if k.max_alder is not none %}<input type="number" name="max_{{ loop.index0 }}" value="{{ k.max_alder }}" min="1" max="300" required class="kort-falt"> år{% else %}<span class="svag">ingen övre gräns</span>{% endif %}</td>
+        <td><input type="text" name="avk_{{ loop.index0 }}" value="{{ (k.krav_avk * 100)|tal(1) }}" inputmode="decimal" required class="kort-falt"> %</td>
+        <td><input type="text" name="og_{{ loop.index0 }}" value="{{ (k.krav_og * 100)|tal(1) }}" inputmode="decimal" required class="kort-falt"> %</td>
+        <td class="num">{{ antal[loop.index0] }}</td></tr>
+      {% endfor %}
+      <tr><td colspan="5" class="dampad">Byggår saknas – kan inte prövas</td><td class="num">{{ utan }}</td></tr>
+    </table>
+    </div>
+    <label>Referensår <input type="number" name="referensar" value="{{ inst.referensar }}" min="1900" max="2100" required class="kort-falt">
+      <span class="mini dampad">Året som åldern räknas till och med.</span></label>
+    <label>Avkastningen räknas på
+      <select name="vardebas">
+        <option value="bokfort" {{ 'selected' if inst.vardebas == 'bokfort' }}>Bokfört värde</option>
+        <option value="marknad" {{ 'selected' if inst.vardebas == 'marknad' }}>Marknadsvärde</option>
+      </select></label>
+    <div class="formknappar"><button class="knapp">Spara krav</button>
+      {% if not standard %}<button class="knapp sek" name="aterstall" value="1" formnovalidate>Återställ till beslutade krav</button>{% endif %}</div>
+  </form>
+  <p class="mini svag">Beslutade krav: upp till 14 år 3 % och 70 %, 15–30 år 4 % och 60 %, 31–50 år 6 % och 60 %, äldre än 50 år 10 % och 55 %.</p>
+</section>
+{% endblock %}

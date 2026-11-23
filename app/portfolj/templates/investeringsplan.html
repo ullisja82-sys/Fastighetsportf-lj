@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% block titel %}Investeringsportfölj{% endblock %}
+{% macro mkr(tkr, d=1) %}{{ (tkr / 1000)|tal(d) }}{% endmacro %}
+{% macro procent(v) %}{% if v is none %}–{% else %}{{ (v * 100)|tal(1) }} %{% endif %}{% endmacro %}
+{% macro lagechip(p) %}{% set l = ia.lage(p, planar) %}<span class="chip lage-{{ l }}">{{ ia.LAGEN[l] }}</span>{% endmacro %}
+{% macro fastigheter(p) %}{% for k in fastighetskoder.get(p.kod, []) %}<a href="/fastighet/{{ k }}">{{ k }}</a>{{ ', ' if not loop.last }}{% else %}<span class="svag">–</span>{% endfor %}{% endmacro %}
+{% block innehall %}
+<div class="sidhuvud sidhuvud-rad">
+  <div>
+    <div class="versal"><a href="/">Portföljen</a> · investeringsportfölj</div>
+    <h1>Investeringsportfölj {{ planar }}</h1>
+    <p class="dampad">Planerade nyproduktioner, förnyelser och avyttringar – när de genomförs, vad de kostar och hur de påverkar driftnettot och resultatkravet. Belopp i mnkr.</p>
+  </div>
+  <span class="chip">Källa: {{ data.KALLA }}</span>
+</div>
+
+<div class="arsval planarsval"><span class="versal">Visa år</span>
+  <nav aria-label="Välj år">{% for a in planaren %}<a href="/investeringsportfolj?planar={{ a }}" class="{{ 'aktiv' if a == planar }}" {% if a == planar %}aria-current="true"{% endif %}>{{ a }}</a>{% endfor %}</nav>
+</div>
+
+<div class="nyckeltal inv-nyckeltal">
+  <div><span class="versal">Investeringar {{ planar }}</span><b>{{ mkr(nt.investering) }} <small>mnkr</small></b>
+    <span class="mini dampad">Nyproduktion {{ mkr(nt.investering_ny) }} · förnyelse {{ mkr(nt.investering_forn) }}</span></div>
+  <div><span class="versal">Pågående projekt {{ planar }}</span><b>{{ nt.pagaende }}</b>
+    <span class="mini dampad">{% if nt.fardigstalls %}Färdigställs: {{ nt.fardigstalls|map(attribute='namn')|join(', ') }}{% else %}Inget färdigställs {{ planar }}{% endif %}</span></div>
+  <div><span class="versal">Driftnetto från projekten {{ planar }}</span><b>{{ mkr(nt.driftnetto) }} <small>mnkr</small></b>
+    <span class="mini dampad">Nya och förnyade hyresintäkter minus kostnader, minus bortfall vid försäljning</span></div>
+  <div><span class="versal">Påverkan på resultatkravet {{ planar }}</span><b>{{ '+' if nt.resultatpaverkan > 0 }}{{ mkr(nt.resultatpaverkan) }} <small>mnkr</small></b>
+    <span class="mini dampad">Fastighet, hela projektvolymen{% if nt.reavinst %} · varav reavinst {{ mkr(nt.reavinst) }}{% endif %}</span></div>
+</div>
+
+<div class="rutnat-3 inv-typer">
+  {% for typ, namn, lista in typer %}
+  <a class="kort inv-typ {{ typ }}" href="#{{ typ }}">
+    <div class="versal"><span class="invmarke {{ typ }} liten"><b>{{ namn[0] }}</b></span>{{ namn }}</div>
+    <b>{{ mkr(lista|sum(attribute='volym'), 0) }} <small>mnkr</small></b>
+    <span class="mini dampad">{{ lista|length }} projekt · {{ 'försäljningsvolym' if typ == 'avyttring' else 'projektvolym' }}</span>
+  </a>
+  {% endfor %}
+</div>
+
+<div class="rutnat-2">
+  <section class="kort">
+    <div class="kort-rubrik"><h2>Investeringar per år</h2><span class="mini dampad">mnkr, {{ ia.DIAGRAMAR[0] }}–{{ ia.DIAGRAMAR[-1] }}</span></div>
+    <div class="forklaring mini"><span><i class="ruta-farg nyproduktion"></i>Nyproduktion</span><span><i class="ruta-farg fornyelse"></i>Förnyelse</span></div>
+    {{ diagram_inv }}
+    <p class="mini dampad">Årets bruttoinvestering = projektvolym × färdigställandefördelning. Totalt {{ mkr(nt.investering_period, 0) }} mnkr under perioden, utöver planerat underhåll K3 och inventarier.</p>
+    <details><summary class="liten">Visa som tabell</summary>
+      <table class="tabell">
+        <tr><th>År</th><th class="num">Nyproduktion</th><th class="num">Förnyelse</th><th class="num">Totalt</th></tr>
+        {% for a, n, f in per_ar %}<tr class="{{ 'valt' if a == planar }}"><td>{{ a }}</td><td class="num">{{ mkr(n) }}</td><td class="num">{{ mkr(f) }}</td><td class="num"><b>{{ mkr(n + f) }}</b></td></tr>{% endfor %}
+      </table></details>
+  </section>
+  <section class="kort">
+    <div class="kort-rubrik"><h2>Påverkan på resultatkravet</h2><span class="mini dampad">mnkr per år, Fastighet</span></div>
+    <div class="forklaring mini"><span><i class="ruta-farg minus"></i>Belastar resultatet</span><span><i class="ruta-farg plus"></i>Bidrar till resultatet</span></div>
+    {{ diagram_rk }}
+    <p class="mini dampad">Under byggtiden belastar projekten resultatkravet (avskrivningar och avkastningskrav på nedlagt kapital före inflyttning); när de är klara bidrar driftnettot. Reavinsten vid försäljning ger ett tillfälligt tillskott.</p>
+    <details><summary class="liten">Visa som tabell</summary>
+      <table class="tabell">
+        <tr><th>År</th><th class="num">Påverkan</th></tr>
+        {% for a, v in rk_per_ar %}<tr class="{{ 'valt' if a == planar }}"><td>{{ a }}</td><td class="num">{{ '+' if v > 0 }}{{ mkr(v) }}</td></tr>{% endfor %}
+      </table></details>
+  </section>
+</div>
+
+<section class="kort">
+  <div class="kort-rubrik"><h2>Tidplan</h2><span class="mini dampad">Projektstart till färdigställande · ◆ försäljning · markerat år {{ planar }}</span></div>
+  <div class="forklaring mini"><span><i class="ruta-farg nyproduktion"></i>Nyproduktion</span><span><i class="ruta-farg fornyelse"></i>Förnyelse</span><span><i class="ruta-farg avyttring"></i>Avyttring</span></div>
+  <div class="tabell-rull tidplan-rulla">{{ diagram_tid }}</div>
+</section>
+
+{% for typ, namn, lista in typer %}
+<section class="kort inv-sektion {{ typ }}" id="{{ typ }}">
+  <div class="kort-rubrik"><h2>{{ namn }}</h2><span class="mini dampad">{{ lista|length }} projekt · mnkr</span></div>
+  <div class="tabell-rull">
+  {% if typ == 'avyttring' %}
+  <table class="tabell">
+    <tr><th>Projekt</th><th>Fastighet</th><th>Försäljning</th><th class="num">Försäljningsvolym</th><th class="num">Bokfört värde</th><th class="num">Reavinst</th>
+      <th class="num">Bortfall driftnetto/år</th><th class="num">Påverkan {{ planar }}</th><th>Läge {{ planar }}</th></tr>
+    {% for p in lista %}
+    <tr><td><b>{{ p.namn }}</b><div class="mini dampad">{{ p.kod }}</div></td><td class="liten">{{ fastigheter(p) }}</td>
+      <td class="nowrap">{{ p.klar or "–" }}</td>
+      <td class="num">{{ mkr(p.volym) }}</td><td class="num">{{ mkr(p.bokfort or 0) }}</td>
+      <td class="num">{{ mkr(p.reavinst|sum) }}</td>
+      <td class="num">{{ mkr(p.driftnetto_ar[-1]) }}</td>
+      <td class="num">{{ '+' if ia.varde(p, 'resultatpaverkan', planar) > 0 }}{{ mkr(ia.varde(p, 'resultatpaverkan', planar)) }}</td>
+      <td>{{ lagechip(p) }}</td></tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <table class="tabell">
+    <tr><th>Projekt</th><th>Fastighet</th><th>Start</th><th>Färdigt</th><th class="num">Projektvolym</th>
+      {% if typ == 'fornyelse' %}<th class="num">Varav intäktshöjande</th>{% endif %}
+      <th class="num">Driftnetto fullt år</th><th class="num">Direktavkastning</th>
+      <th class="num">Investering {{ planar }}</th><th class="num">Påverkan {{ planar }}</th><th>Läge {{ planar }}</th></tr>
+    {% for p in lista %}
+    <tr><td><b>{{ p.namn }}</b><div class="mini dampad">{{ p.kod }}{% if p.grupp %} · {{ p.grupp }}{% endif %}{% if p.namn.startswith('Förnyelse ') %} · ej specificerat projekt{% endif %}</div></td>
+      <td class="liten">{{ fastigheter(p) }}</td>
+      <td class="nowrap">{{ p.start or "–" }}</td><td class="nowrap">{{ p.klar or "–" }}</td>
+      <td class="num">{{ mkr(p.volym) }}</td>
+      {% if typ == 'fornyelse' %}<td class="num">{{ mkr(p.intaktshojande or 0) }}</td>{% endif %}
+      <td class="num">{{ mkr(p.driftnetto or 0) }}</td><td class="num">{{ procent(ia.direktavkastning(p)) }}</td>
+      <td class="num">{{ mkr(ia.varde(p, 'investering', planar)) }}</td>
+      <td class="num">{{ '+' if ia.varde(p, 'resultatpaverkan', planar) > 0 }}{{ mkr(ia.varde(p, 'resultatpaverkan', planar)) }}</td>
+      <td>{{ lagechip(p) }}</td></tr>
+    {% endfor %}
+    <tr class="summa"><td>Summa</td><td></td><td></td><td></td><td class="num">{{ mkr(lista|sum(attribute='volym')) }}</td>
+      {% if typ == 'fornyelse' %}<td class="num">{{ mkr(lista|map(attribute='intaktshojande')|sum) }}</td>{% endif %}
+      <td class="num">{{ mkr(lista|map(attribute='driftnetto')|select|sum) }}</td><td></td>
+      <td class="num">{{ mkr(ia.summa(lista, 'investering', planar)) }}</td>
+      <td class="num">{{ mkr(ia.summa(lista, 'resultatpaverkan', planar)) }}</td><td></td></tr>
+  </table>
+  {% endif %}
+  </div>
+  <details style="margin-top:10px"><summary class="liten">Årsvärden per projekt {{ data.AREN[1] }}–{{ data.AREN[-1] }}</summary>
+    <div class="tabell-rull">
+    {% for nyckel, rubrik in ([('reavinst', 'Reavinst'), ('driftnetto_ar', 'Driftnetto (bortfall)'), ('resultatpaverkan', 'Påverkan på resultatkravet')] if typ == 'avyttring'
+         else [('investering', 'Investering'), ('driftnetto_ar', 'Driftnetto'), ('resultatpaverkan', 'Påverkan på resultatkravet')]) %}
+    <h3 class="arsrubrik">{{ rubrik }}, mnkr</h3>
+    <table class="tabell arsvarden">
+      <tr><th>Projekt</th>{% for a in data.AREN[1:] %}<th class="num{{ ' valt' if a == planar }}">{{ a }}</th>{% endfor %}</tr>
+      {% for p in lista %}<tr><td>{{ p.namn }}</td>{% for a in data.AREN[1:] %}{% set v = ia.varde(p, nyckel, a) %}<td class="num{{ ' valt' if a == planar }}{{ ' svag' if not v }}">{{ mkr(v) if v else '–' }}</td>{% endfor %}</tr>{% endfor %}
+      <tr class="summa"><td>Summa</td>{% for a in data.AREN[1:] %}<td class="num{{ ' valt' if a == planar }}">{{ mkr(ia.summa(lista, nyckel, a)) }}</td>{% endfor %}</tr>
+    </table>
+    {% endfor %}
+    </div>
+  </details>
+</section>
+{% endfor %}
+
+<p class="mini dampad" style="margin-top:14px">Underlaget: projektflikarna N (nyproduktion), U (förnyelse) och A (avyttring) i <i>Budgetberäkning 2027</i>, samma uppgifter som Investeringsanalys i Styrning.
+  Kullagård och Högskolan visas per etapp. Förnyelse 5–7 är reserverade, ännu ej specificerade förnyelseprojekt.
+  Kolumnen Fastighet är appens koppling till portföljen och ändras under <a href="/underlag#investeringsplan">Underlag och datakvalitet</a>.</p>
+{% endblock %}

@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% block titel %}Underlag och datakvalitet{% endblock %}
+{% block innehall %}
+<div class="sidhuvud">
+  <div class="versal">Fastighetsportfölj</div>
+  <h1>Underlag och datakvalitet</h1>
+  <p class="dampad">Appen läser Fastighetsanalys-filerna i mappen Underlag. Varje fil är ett år; året står i filnamnet.</p>
+</div>
+{% if last %}<div class="ruta ok">Underlagen är inlästa på nytt.</div>{% endif %}
+
+<section class="kort">
+  <h2>Inlästa filer</h2>
+  <table class="tabell">
+    <tr><th>År</th><th>Fil</th><th class="num">Fastigheter</th><th>Anmärkning</th></tr>
+    {% for f in filer %}
+    <tr><td><b>{{ f.ar }}</b></td><td class="liten">{{ f.filnamn }}</td><td class="num">{{ f.fastigheter|length }}</td><td class="liten">{{ f.varningar|join('; ') or '–' }}</td></tr>
+    {% endfor %}
+    {% for namn, text in fel %}<tr><td>–</td><td class="liten">{{ namn }}</td><td></td><td class="liten neg">{{ text }}</td></tr>{% endfor %}
+  </table>
+  <form method="post" action="/underlag/las-om" style="margin-top:12px"><button class="knapp sek">Läs in underlagen på nytt</button>
+    <span class="mini dampad">Använd efter att en ny fil lagts i Underlag.</span></form>
+</section>
+
+<section class="kort" id="investeringsplan">
+  <h2>Investeringsportföljen</h2>
+  <p class="dampad liten">Planen anger projekten med namn. Vilka fastigheter ett projekt gäller och var det ligger på kartan är antaganden som du kan rätta här.
+    Fastighetsnummer skrivs med komma emellan. Plats behövs bara för projekt som inte ligger på en befintlig fastighet. Som plats går det att skriva en adress eller koordinater, t.ex. ”56.66400, 12.76200” (högerklicka på platsen i Google Maps och klicka på siffrorna för att kopiera dem).</p>
+  <form method="post" action="/underlag/investering" class="formular" style="max-width:none">
+    <div class="tabell-rull">
+    <table class="tabell">
+      <tr><th>Projekt</th><th>Typ</th><th>Period</th><th>Fastighetsnummer</th><th>Plats för kartan</th><th>På kartan</th></tr>
+      {% for p in investeringar %}
+      <tr><td><b>{{ p.namn }}</b><input type="hidden" name="projekt" value="{{ p.kod }}"><div class="mini svag">{{ p.kod }}</div></td><td class="liten">{{ p.typnamn }}</td><td class="liten nowrap">{{ p.period }}</td>
+        <td><input type="text" name="koder_{{ p.kod }}" value="{{ p.koder|join(', ') }}" aria-label="Fastighetsnummer för {{ p.namn }}" style="width:220px"></td>
+        <td><input type="text" name="adress_{{ p.kod }}" value="{{ p.sokord }}" aria-label="Plats för {{ p.namn }}" placeholder="{{ 'fastighetens läge används' if p.koder else 't.ex. Kungsgatan 7' }}" style="width:220px"></td>
+        <td class="liten">{% if p.plats %}<span class="pos">Ja</span>{% else %}<span class="neg">Nej</span>{% endif %}</td></tr>
+      {% endfor %}
+    </table>
+    </div>
+    <div class="formknappar"><button class="knapp">Spara koppling och platser</button></div>
+  </form>
+</section>
+
+<section class="kort" id="projektlista">
+  <h2>Byggprojekt</h2>
+  {% if projekt.fel %}<p class="neg liten">{{ projekt.filnamn }}: {{ projekt.fel }}</p>
+  {% elif not projekt.filnamn %}<p class="dampad liten">Ingen projektlista är inläst. Lägg exporten (Excel) i mappen Projekt och läs in underlagen på nytt.</p>
+  {% else %}
+  <p class="dampad liten">Inläst fil: {{ projekt.filnamn }}. {{ projekt.antal }} pågående och planerade projekt, fördelade på {{ projekt|length }} fastigheter via K-Ställe. Avslutade och avbrutna projekt läses inte in.</p>
+  {% if projekt.ovriga %}
+  <table class="tabell">
+    <tr><th>Projekt utan fastighet i portföljen</th><th>Status</th><th>Förväntat slut</th></tr>
+    {% for p in projekt.ovriga %}<tr><td>{{ p.namn }}</td><td class="liten">{{ p.status }}</td><td class="liten nowrap">{{ p.slut or '–' }}</td></tr>{% endfor %}
+  </table>
+  {% endif %}
+  {% endif %}
+</section>
+
+<section class="kort" id="karta">
+  <h2>Kartan</h2>
+  {% set utan = [] %}{% for k, n in fastighetsnamn.items() if not platser.get(k) or platser[k].lat is none %}{% set _ = utan.append((k, n)) %}{% endfor %}
+  <p class="dampad liten">{{ fastighetsnamn|length - utan|length }} av {{ fastighetsnamn|length }} fastigheter har ett läge på kartan. Adressen tas ur fastighetens namn och slås upp hos OpenStreetMap.
+    {% if platssokning.pagar %}<b>Uppslagning pågår – {{ platssokning.kvar }} kvar.</b> Ladda om sidan om en stund.{% endif %}
+    {% if platssokning.fel %}<span class="neg">Senaste uppslagningen avbröts: {{ platssokning.fel }}</span>{% endif %}</p>
+  {% if utan %}
+  <div class="tabell-rull">
+  <table class="tabell">
+    <tr><th>Fastighet utan läge</th><th>Adress som söktes</th></tr>
+    {% for k, n in utan %}<tr><td><a href="/fastighet/{{ k }}"><b>{{ k }}</b> {{ n }}</a></td><td class="liten">{{ platser[k].adress if platser.get(k) and platser[k].adress else '– ingen gatuadress i namnet' }}</td></tr>{% endfor %}
+  </table>
+  </div>
+  <form method="post" action="/underlag/sok-lagen" style="margin-top:12px"><button class="knapp sek">Försök slå upp dem igen</button>
+    <span class="mini dampad">Eller öppna fastigheten och skriv en adress för kartan under Komplettera.</span></form>
+  {% endif %}
+</section>
+
+<section class="kort" id="kundundersokning">
+  <h2>Kundundersökning (AktivBo)</h2>
+  {% if not kund.filer and not kund.fel %}
+  <p class="dampad liten">Ingen fil är inläst. Lägg AktivBo-exporten (Excel) i mappen Kundundersökning och läs in underlagen på nytt. Tills dess visas fiktiva siffror på fastigheterna.</p>
+  {% else %}
+  <p class="dampad liten">Inlästa filer: {{ kund.filer|join(', ') or '–' }}. {{ kund.enheter|length }} av {{ kund.enheter|length + kund.utan_traff|length }} enheter i AktivBo är kopplade till en fastighet.
+    AktivBo anger fastigheten med namn, så kopplingen görs på namnet.</p>
+  {% for namn, text in kund.fel %}<p class="neg liten">{{ namn }}: {{ text }}</p>{% endfor %}
+  {% if kund.utan_traff or kund.manuella %}
+  <form method="post" action="/underlag/kundkoppling" class="formular" style="max-width:none">
+    <table class="tabell">
+      <tr><th>Enhet i AktivBo</th><th>Fastighet i portföljen</th></tr>
+      {% for e in (kund.utan_traff + kund.manuella|list)|sort %}
+      <tr><td><b>{{ e }}</b>{% if e in kund.manuella %} <span class="chip">kopplad för hand</span>{% endif %}<input type="hidden" name="enhet" value="{{ e }}"></td>
+        <td><select name="kod" aria-label="Fastighet för {{ e }}"><option value="">Ingen – visas inte</option>
+          {% for k, n in fastighetsnamn.items() %}<option value="{{ k }}" {{ 'selected' if kund.manuella.get(e) == k }}>{{ n }} ({{ k }})</option>{% endfor %}</select></td></tr>
+      {% endfor %}
+    </table>
+    <div class="formknappar"><button class="knapp">Spara kopplingar</button>
+      <span class="mini dampad">Enheterna ovan gick inte att para ihop säkert, oftast för att flera fastigheter har samma namn.</span></div>
+  </form>
+  {% endif %}
+  {% endif %}
+</section>
+
+<section class="kort">
+  <h2>Avstämning mot underlaget {{ ar }}</h2>
+  <p class="dampad liten">Summan av fastigheterna i appen jämfört med affärsområdets summarad i Excel-filen.</p>
+  <table class="tabell">
+    <tr><th>Affärsområde</th><th class="num">Fastigheter</th><th>Mått</th><th class="num">Summa fastigheter</th><th class="num">Summarad i Excel</th><th class="num">Skillnad</th></tr>
+    {% for ao, n, matt in avstamning %}{% for namn, summa, excel in matt %}
+    <tr><td>{% if loop.first %}<b>{{ ao }}</b>{% endif %}</td><td class="num">{% if loop.first %}{{ n }}{% endif %}</td><td class="liten">{{ namn }}</td>
+      <td class="num">{{ tkr(summa) }}</td><td class="num">{{ tkr(excel) }}</td>
+      <td class="num">{% if excel is none %}<span class="svag">–</span>{% else %}{{ diff(summa - excel) if (summa - excel)|abs >= 0.5 else '0' }}{% endif %}</td></tr>
+    {% endfor %}{% endfor %}
+  </table>
+  <p class="mini svag">Belopp i tkr. Bokfört värde stäms av mot värden som finns i årets fil.</p>
+</section>
+
+<section class="kort">
+  <h2>Datakvalitet {{ ar }}</h2>
+  <p class="dampad liten">{{ flaggade|length }} av {{ antal }} fastigheter har en flagga. Fastigheter utan byggår kan inte prövas mot kraven; byggår kan kompletteras på fastigheten.</p>
+  <div class="tabell-rull">
+  <table class="tabell">
+    <tr><th>Fastighet</th><th>AO</th><th class="num">Byggår</th><th class="num">Intäkter</th><th class="num">Bokfört värde</th><th>Flaggor</th></tr>
+    {% for r in flaggade %}
+    <tr><td><a href="/fastighet/{{ r.kod }}"><b>{{ r.kod }}</b> {{ r.namn }}</a></td><td class="liten">{{ r.ao }}</td><td class="num">{{ r.byggar or '–' }}</td>
+      <td class="num">{{ tkr(r.intakter) }}</td><td class="num">{{ tkr(r.bokfort) }}</td><td>{% for f in r.flaggor %}<span class="chip varning">{{ f }}</span>{% endfor %}</td></tr>
+    {% else %}<tr><td colspan="6" class="svag">Inga flaggor.</td></tr>
+    {% endfor %}
+  </table>
+  </div>
+</section>
+
+<section class="kort">
+  <h2>Ändrat i appen</h2>
+  <table class="tabell">
+    <tr><th>Fastighet</th><th class="num">Byggår i underlaget</th><th class="num">Byggår i appen</th><th>Anteckning</th></tr>
+    {% for r in justerade %}
+    <tr><td><a href="/fastighet/{{ r.kod }}"><b>{{ r.kod }}</b> {{ r.namn }}</a></td><td class="num">{{ r.byggar_underlag or '–' }}</td>
+      <td class="num">{{ r.byggar if r.justerat_byggar else '–' }}</td><td class="liten">{{ r.anteckning }}</td></tr>
+    {% else %}<tr><td colspan="4" class="svag">Inga byggår eller anteckningar har lagts in i appen.</td></tr>
+    {% endfor %}
+  </table>
+</section>
+{% endblock %}
