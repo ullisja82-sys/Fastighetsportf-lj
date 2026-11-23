@@ -38,7 +38,7 @@ ADMIN_EPOST = {a.strip().casefold() for a in os.environ.get("ADMIN_EPOST", "").s
 
 SESSIONSKAKA = "session"
 FLODESKAKA = "inloggning"
-OPPNA_SOKVAGAR = ("/static/", "/favicon.ico", "/logga-in", "/auth/callback", "/logga-ut", "/utloggad")
+OPPNA_SOKVAGAR = ("/static/", "/favicon.ico", "/apple-touch-icon.png", "/apple-touch-icon-precomposed.png", "/logga-in", "/auth/callback", "/logga-ut", "/utloggad")
 SCOPE = "openid profile email"
 
 _hemlighet = (os.environ.get("SESSION_SECRET", "").strip() or secrets.token_urlsafe(32)).encode()

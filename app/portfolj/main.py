@@ -7,7 +7,7 @@ import time
 from urllib.parse import quote, urlencode
 
 from fastapi import FastAPI, Form, HTTPException, Request
-from fastapi.responses import RedirectResponse, StreamingResponse
+from fastapi.responses import FileResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from openpyxl import Workbook
@@ -161,6 +161,17 @@ def _visa(request: Request, mall: str, ar: int, **kontext):
 
 def _rader(ar: int) -> list[dict]:
     return modell.rader(_underlag, ar, lagring.installningar(), lagring.justeringar())
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon():
+    return FileResponse(os.path.join(HAR, "static", "favicon.ico"), media_type="image/x-icon")
+
+
+@app.get("/apple-touch-icon.png", include_in_schema=False)
+@app.get("/apple-touch-icon-precomposed.png", include_in_schema=False)
+def apple_touch_icon():
+    return FileResponse(os.path.join(HAR, "static", "apple-touch-icon.png"), media_type="image/png")
 
 
 @app.get("/")

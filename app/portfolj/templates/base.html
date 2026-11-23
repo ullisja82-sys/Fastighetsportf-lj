@@ -4,6 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block titel %}{% endblock %} · HFAB Fastighetsportfölj</title>
+  <link rel="icon" href="{{ statisk('favicon.ico') }}" sizes="any">
+  <link rel="icon" href="{{ statisk('favicon.svg') }}" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="{{ statisk('apple-touch-icon.png') }}">
+  <link rel="manifest" href="{{ statisk('manifest.webmanifest') }}">
+  <meta name="apple-mobile-web-app-title" content="Fastighetsportfölj">
   <link rel="stylesheet" href="{{ statisk('app.css') }}">
   {% block huvud %}{% endblock %}
 </head>
