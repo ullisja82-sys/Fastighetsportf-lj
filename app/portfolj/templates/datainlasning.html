@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block titel %}Datainläsning{% endblock %}
+{% block innehall %}
+<div class="sidhuvud">
+  <div class="versal">Administration</div>
+  <h1>Datainläsning</h1>
+  <p class="dampad">Läs in Excel eller CSV till fastigheternas flikar. Filen kontrolleras och visas i en förhandsgranskning; inget sparas förrän du godkänner.
+    En tom cell ändrar inte ett värde som redan finns, och inget tas bort för att det saknas i filen.</p>
+</div>
+{% if fel %}<div class="ruta varning"><b>Filen lästes inte in.</b> {{ fel }}</div>{% endif %}
+
+<section class="kort">
+  <h2>Läs in en fil</h2>
+  <form method="post" action="/datainlasning" enctype="multipart/form-data" class="formular">
+    <label>Datatyp
+      <select name="datatyp" required>
+        {% for nyckel, dt in DATATYPER.items() %}<option value="{{ nyckel }}">{{ dt.namn }}</option>{% endfor %}
+      </select></label>
+    <label>Fil (.xlsx eller .csv)
+      <input type="file" name="fil" accept=".xlsx,.xlsm,.csv" required></label>
+    <div class="formknappar"><button class="knapp">Ladda upp och kontrollera</button></div>
+  </form>
+</section>
+
+<section class="kort">
+  <h2>Datatyper och mallar</h2>
+  <div class="tabell-rull">
+  <table class="tabell">
+    <tr><th>Datatyp</th><th>Innehåll</th><th>Obligatoriska kolumner</th><th>Övriga kolumner</th><th></th></tr>
+    {% for nyckel, dt in DATATYPER.items() %}
+    <tr><td class="nowrap"><b>{{ dt.namn }}</b></td><td>{{ dt.beskrivning }}</td>
+      <td>{{ dt.kolumner|selectattr('kravs')|map(attribute='rubrik')|join(', ') }}</td>
+      <td class="liten">{{ dt.kolumner|rejectattr('kravs')|map(attribute='rubrik')|join(', ') }}</td>
+      <td class="nowrap"><a href="/datainlasning/mall/{{ nyckel }}.xlsx">Hämta mall</a></td></tr>
+    {% endfor %}
+  </table>
+  </div>
+  <p class="mini svag">Rubrikerna behöver inte heta exakt så här. Vanliga varianter känns igen, och du kan själv peka ut kolumnerna efter uppladdningen. Belopp anges i kronor.</p>
+</section>
+
+<section class="kort">
+  <h2>Historik</h2>
+  {% if historik %}
+  <div class="tabell-rull">
+  <table class="tabell">
+    <tr><th>Nr</th><th>Datatyp</th><th>Fil</th><th>Uppladdad</th><th>Av</th><th>Läge</th><th class="num">Rader</th><th class="num">Nya</th><th class="num">Ändrade</th><th class="num">Oförändrade</th><th class="num">Fel</th></tr>
+    {% for h in historik %}
+    <tr><td><a href="/datainlasning/{{ h.id }}">{{ h.id }}</a></td><td>{{ DATATYPER[h.datatyp].namn if h.datatyp in DATATYPER else h.datatyp }}</td><td>{{ h.filnamn }}</td>
+      <td class="nowrap liten">{{ h.uppladdad }}</td><td class="liten">{{ h.av or '–' }}</td>
+      <td>{% if h.status == 'importerad' %}<span class="pill gron"><span class="prick"></span>Inläst {{ h.importerad }}</span>{% elif h.status == 'granskas' %}<span class="pill gul"><span class="prick"></span>Väntar på godkännande</span>{% else %}<span class="pill"><span class="prick"></span>Avbruten</span>{% endif %}</td>
+      <td class="num">{{ h.rader|tal(0) }}</td><td class="num">{{ h.nya|tal(0) }}</td><td class="num">{{ h.andrade|tal(0) }}</td><td class="num">{{ h.oforandrade|tal(0) }}</td><td class="num">{{ h.fel|tal(0) }}</td></tr>
+    {% endfor %}
+  </table>
+  </div>
+  {% else %}<p class="dampad liten">Inget är inläst ännu.</p>{% endif %}
+</section>
+{% endblock %}

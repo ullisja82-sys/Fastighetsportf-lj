@@ -40,6 +40,15 @@
   </div>
 </section>
 
+<section class="kort" id="flikar">
+  <h2>Flikarna på fastigheten</h2>
+  <p>{% if flikar_for_alla %}Flikarna (Översikt, Ekonomi, Hyra, Energi &amp; media, Drift, Underhåll &amp; investering, Kund &amp; uthyrning) <b>visas för alla</b> med behörighet.
+    {% else %}Flikarna är en förhandsvisning och <b>visas bara för administratörer</b>. Övriga ser fastighetssidan som förut.{% endif %}</p>
+  <form method="post" action="/anvandare/flikar"{% if not flikar_for_alla %} onsubmit="return confirm('Visa flikarna för alla med behörighet?')"{% endif %}>
+    <button class="knapp {{ 'sek' if flikar_for_alla }}" name="visa" value="{{ 'admin' if flikar_for_alla else 'alla' }}">{{ 'Visa bara för administratörer' if flikar_for_alla else 'Visa för alla' }}</button>
+  </form>
+</section>
+
 <section class="kort">
   <h2>Behörigheterna</h2>
   <table class="tabell">

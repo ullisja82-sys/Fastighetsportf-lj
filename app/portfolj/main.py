@@ -6,14 +6,15 @@ import threading
 import time
 from urllib.parse import quote, urlencode
 
-from fastapi import FastAPI, Form, HTTPException, Request
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from openpyxl import Workbook
 from openpyxl.styles import Font
 
-from . import inloggning, invanalys, invdiagram, investering, investeringsplan_data, kund, lagring, modell, plats, projekt
+from . import flikar, importmotor, inloggning, invanalys, invdiagram, omraden, investering, investeringsplan_data, kund, lagring, modell, plats, projekt
+from .datatyper import DATATYPER
 from .importera import STAMFALT, las_underlag
 
 HAR = os.path.dirname(__file__)
@@ -33,6 +34,15 @@ _underlag = las_underlag(UNDERLAG_DIR)
 def _fastighetsnamn() -> dict[str, str]:
     """Nummer -> namn enligt senaste år där fastigheten finns."""
     return {k: next(f["namn"] for a in reversed(_underlag.ar) if (f := _underlag.fastighet(k, a))) for k in _underlag.koder()}
+
+
+def _synka_fastigheter() -> None:
+    """Fastighetstabellen i databasen följer underlaget: nya fastigheter läggs till, ingen tas bort."""
+    senaste = {k: next(f for a in reversed(_underlag.ar) if (f := _underlag.fastighet(k, a))) for k in _underlag.koder()}
+    importmotor.synka_fastigheter([(k, f["namn"], f["ao"]) for k, f in senaste.items() if not f.get("samlingsrad")])
+
+
+_synka_fastigheter()
 
 
 def _las_kund():
@@ -244,18 +254,54 @@ def fastigheter(request: Request, ar: int | None = None, ao: str = "", klass: st
     return _visa(request, "fastigheter.html", ar, rader=rr, aos=aos, val={"ao": ao, "klass": klass, "status": status}, vald_ao=ao if ao in aos else "")
 
 
+def _ser_flikar(request: Request) -> bool:
+    """Flikarna är en förhandsvisning: bara administratörer ser dem tills de släpps till alla (Användare och behörigheter).
+    Utan inloggning (lokal körning) finns inga roller, och då visas de."""
+    anv = getattr(request.state, "anvandare", None)
+    return anv is None or anv["roll"] == "admin" or lagring.flikar_for_alla()
+
+
 @app.get("/fastighet/{kod}")
-def fastighet(request: Request, kod: str, ar: int | None = None, sparat: int = 0):
+def fastighet(request: Request, kod: str, ar: int | None = None, sparat: int = 0, flik: str = ""):
     ar = _ar(request, ar)
     inst, just = lagring.installningar(), lagring.justeringar()
     if kod not in _underlag.koder():
         raise HTTPException(404, "Fastigheten finns inte i underlaget")
     per_ar = [(a, modell.berakna(f, inst, just.get(kod))) for a in _underlag.ar if (f := _underlag.fastighet(kod, a))]
     r = dict(per_ar)[ar]
+    kundmatt = kund.jamforelse(_kund or kund.fiktiv(_underlag.koder(), _underlag.ar), kod, ar)
+    kontext = {}
+    if _ser_flikar(request):
+        # Värden som flikarnas fält kan peka på: årets rad ur Fastighetsanalysen, projektlistan och kundundersökningen (aldrig de fiktiva siffrorna)
+        def varden(a: int, rad: dict | None) -> dict | None:
+            if rad is None:
+                return None
+            v = dict(rad)
+            if _projekt.filnamn and a == ar:
+                v["antal_projekt"] = len(_projekt.get(kod, []))
+            v.update(_kund.get((a, "fastighet", kod), {}) if _kund else {})
+            if fid:   # det som lästs in under Datainläsning; uppgifter som redan finns ur ett underlag behålls
+                inlast = omraden.varden(con, fid, a, rad.get("yta"), rad.get("lgh"))
+                v["_kallor"] = omraden.kalla_per_nyckel(inlast, kallor)
+                v.update(inlast)
+                for kort, lang in (("serviceindex", "kund_serviceindex"), ("produktindex", "kund_produktindex"), ("vakansgrad", "kund_vakansgrad")):
+                    if v.get(kort) is None and inlast.get(lang) is not None:
+                        v[kort], v["_kallor"][kort] = inlast[lang], v["_kallor"].get(lang)
+            return v
+        fid = importmotor.fastighets_id(kod)
+        con = importmotor.anslut()
+        kallor = omraden.kallor(con, fid) if fid else {}
+        kontext = {"flikar": flikar.FLIKAR, "flik": flik if flik in dict(flikar.FLIKAR) else "oversikt", "flikar_for_alla": lagring.flikar_for_alla(),
+                   "fliktabeller": flikar.TABELLER, "flikfalt": flikar.sammanstall(varden(ar, r), varden(ar - 1, dict(per_ar).get(ar - 1))),
+                   "underlagsfil": _underlag.filer[ar].filnamn, "flikkallor": kallor,
+                   "flikinnehall": omraden.tabeller(con, fid, ar, tal) if fid else {},
+                   "energijamforelse": omraden.jamforelse(r, _rader(ar), omraden.forbrukning_per_fastighet(con, ar)) if flik == "energi" else [],
+                   "JMF_AR": omraden.JMF_AR, "JMF_YTA": omraden.JMF_YTA}
+        con.close()
     return _visa(request, "fastighet.html", ar, r=r, per_ar=per_ar, sparat=sparat, just=just.get(kod), vald_ao=r["ao"],
-                 kundmatt=kund.jamforelse(_kund or kund.fiktiv(_underlag.koder(), _underlag.ar), kod, ar), kund_fiktiv=not _kund,
+                 kundmatt=kundmatt, kund_fiktiv=not _kund,
                  kundenheter=_kund.get((ar, "fastighet", kod), {}).get("enheter", []), plats=lagring.platser().get(kod),
-                 hfab_beraknad=_kund.get((ar, "hfab", ""), {}).get("beraknad"))
+                 hfab_beraknad=_kund.get((ar, "hfab", ""), {}).get("beraknad"), **{"flik": "alla", **kontext})
 
 
 @app.post("/fastighet/{kod}")
@@ -347,6 +393,7 @@ def las_om():
     _underlag = las_underlag(UNDERLAG_DIR)
     _kund = _las_kund()
     _projekt = projekt.las_projekt(PROJEKT_DIR, set(_underlag.koder()))
+    _synka_fastigheter()
     return RedirectResponse("/underlag?last=1", status_code=303)
 
 
@@ -398,7 +445,7 @@ def anvandare_sida(request: Request, sparat: int = 0):
     if not inloggning.pa():
         raise HTTPException(404)
     return _visa(request, "anvandare.html", _ar(request, None), dolj_arsval=True, anvandare=lagring.alla_anvandare(),
-                 ROLLER=lagring.ROLLER, ROLLFORKLARING=lagring.ROLLFORKLARING, sparat=sparat,
+                 ROLLER=lagring.ROLLER, ROLLFORKLARING=lagring.ROLLFORKLARING, sparat=sparat, flikar_for_alla=lagring.flikar_for_alla(),
                  fasta=[a["oid"] for a in lagring.alla_anvandare() if inloggning.fast_admin(a["epost"])])
 
 
@@ -421,6 +468,146 @@ def spara_anvandare(request: Request, oid: str = Form(...), roll: str = Form("")
         except ValueError as e:
             raise HTTPException(400, str(e))
     return RedirectResponse("/anvandare?sparat=1", status_code=303)
+
+
+@app.post("/anvandare/flikar")
+def spara_flikar(visa: str = Form("")):
+    """Släpper flikarna på fastigheten till alla, eller drar tillbaka dem till bara administratörer."""
+    if not inloggning.pa():
+        raise HTTPException(404)
+    lagring.satt_flikar_for_alla(visa == "alla")
+    return RedirectResponse("/anvandare?sparat=1", status_code=303)
+
+
+# --- Datainläsning (bara administratörer; kontrolleras i inloggning.krav_inloggning) -------------------
+def _inlasning(import_id: int) -> dict:
+    imp = importmotor.inlasning(import_id)
+    if imp is None:
+        raise HTTPException(404, "Inläsningen finns inte")
+    return imp
+
+
+@app.get("/datainlasning")
+def datainlasning(request: Request, fel: str = ""):
+    return _visa(request, "datainlasning.html", _ar(request, None), dolj_arsval=True, DATATYPER=DATATYPER, historik=importmotor.historik(), fel=fel)
+
+
+@app.post("/datainlasning")
+async def ladda_upp(request: Request, datatyp: str = Form(...), fil: UploadFile = File(...)):
+    innehall = await fil.read(30 * 1024 * 1024 + 1)
+    if len(innehall) > 30 * 1024 * 1024:
+        return RedirectResponse("/datainlasning?" + urlencode({"fel": "Filen är större än 30 MB."}), status_code=303)
+    anv = getattr(request.state, "anvandare", None)
+    try:
+        import_id = importmotor.ny_inlasning(datatyp, fil.filename, innehall, (anv or {}).get("namn") or "")
+    except importmotor.Importfel as e:
+        return RedirectResponse("/datainlasning?" + urlencode({"fel": str(e)}), status_code=303)
+    return RedirectResponse(f"/datainlasning/{import_id}", status_code=303)
+
+
+@app.get("/datainlasning/mall/{datatyp}.xlsx")
+def importmall(datatyp: str):
+    """Tom mall med datatypens rubriker och en förklaring av varje kolumn."""
+    if datatyp not in DATATYPER:
+        raise HTTPException(404)
+    dt = DATATYPER[datatyp]
+    wb = Workbook()
+    ws = wb.active
+    ws.title = dt["namn"][:31]
+    ws.append([k.rubrik for k in dt["kolumner"]])
+    ws2 = wb.create_sheet("Förklaring")
+    ws2.append(["Kolumn", "Obligatorisk", "Format", "Kommentar", "Andra rubriker som känns igen"])
+    typnamn = {"text": "text", "tal": "tal", "heltal": "heltal", "andel": "procent", "period": "period", "datum": "datum", "janej": "ja/nej",
+               "val": "fast värde", "fastighet": "fastighet", "manad": "månad"}
+    for k in dt["kolumner"]:
+        ws2.append([k.rubrik, "ja" if k.kravs else "", typnamn[k.typ], k.hjalp, ", ".join(k.alias)])
+    for blad in (ws, ws2):
+        for c in blad[1]:
+            c.font = Font(bold=True)
+        blad.freeze_panes = "A2"
+        for kol in blad.columns:
+            blad.column_dimensions[kol[0].column_letter].width = min(max(len(str(c.value or "")) for c in kol) + 2, 70)
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return StreamingResponse(buf, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                             headers={"Content-Disposition": f'attachment; filename="Importmall-{datatyp}.xlsx"'})
+
+
+@app.get("/datainlasning/{import_id}")
+def inlasning_sida(request: Request, import_id: int, visa: str = "", fel: str = ""):
+    imp = _inlasning(import_id)
+    dt = DATATYPER[imp["datatyp"]]
+    rubriker, datarader, bladnamn = importmotor.filrader(imp) if imp["status"] == "granskas" else ([], [], [])
+    visa = visa if visa in importmotor.STATUSNAMN else ("fel" if imp["fel"] else "ny" if imp["nya"] else "andrad" if imp["andrade"] else "oforandrad")
+    return _visa(request, "inlasning.html", _ar(request, None), dolj_arsval=True, imp=imp, dt=dt, rubriker=rubriker, bladnamn=bladnamn,
+                 exempel=[next((r[i] for r in datarader[:50] if i < len(r) and r[i] is not None), None) for i in range(len(rubriker))],
+                 visa=visa, rader=importmotor.rader(import_id, visa), STATUSNAMN=importmotor.STATUSNAMN, lagrade=importmotor.lagrade(dt),
+                 okanda=importmotor.okanda_fastigheter(import_id) if imp["status"] == "granskas" else [],
+                 fastighetsnamn=dict(sorted(_fastighetsnamn().items(), key=lambda x: x[1].lower())),
+                 tidigare=importmotor.tidigare_inlast(imp), fel=fel)
+
+
+def _inlasningssteg(import_id: int, steg) -> RedirectResponse:
+    try:
+        steg()
+    except importmotor.Importfel as e:
+        return RedirectResponse(f"/datainlasning/{import_id}?" + urlencode({"fel": str(e)}), status_code=303)
+    return RedirectResponse(f"/datainlasning/{import_id}", status_code=303)
+
+
+@app.post("/datainlasning/{import_id}/kolumner")
+async def inlasning_kolumner(request: Request, import_id: int):
+    """Användarens val av blad, rubrikrad och vilken kolumn som är vad; filen valideras om."""
+    imp = _inlasning(import_id)
+    form = await request.form()
+    try:
+        rubrikrad = max(int(form.get("rubrikrad", "1")) - 1, 0)
+    except ValueError:
+        rubrikrad = imp["mappning"]["rubrikrad"]
+    falt = {k.falt for k in DATATYPER[imp["datatyp"]]["kolumner"]}
+    mappning = {"blad": form.get("blad") or imp["mappning"]["blad"], "rubrikrad": rubrikrad}
+    if mappning["blad"] != imp["mappning"]["blad"] or rubrikrad != imp["mappning"]["rubrikrad"]:   # ny rubrikrad: föreslå kolumnerna på nytt
+        blad = importmotor.las_fil(importmotor._sokvag(imp))
+        rader = dict(blad).get(mappning["blad"], blad[0][1])
+        mappning["kolumner"] = {str(i): f for i, f in importmotor._rubriktraffar(DATATYPER[imp["datatyp"]], rader[rubrikrad] if rubrikrad < len(rader) else []).items()}
+    else:
+        valda = {}
+        for nyckel, varde in form.multi_items():
+            if nyckel.startswith("kol_") and varde in falt and varde not in valda.values():
+                valda[nyckel[4:]] = varde
+        mappning["kolumner"] = valda
+    return _inlasningssteg(import_id, lambda: importmotor.forbered(import_id, mappning))
+
+
+@app.post("/datainlasning/{import_id}/koppla")
+async def inlasning_koppla(request: Request, import_id: int):
+    _inlasning(import_id)
+    form = await request.form()
+    kopplingar = {e: k for e, k in zip(form.getlist("externt"), form.getlist("kod")) if k}
+    return _inlasningssteg(import_id, lambda: importmotor.koppla(import_id, kopplingar))
+
+
+@app.post("/datainlasning/{import_id}/importera")
+def inlasning_importera(import_id: int):
+    _inlasning(import_id)
+    return _inlasningssteg(import_id, lambda: importmotor.importera(import_id))
+
+
+@app.post("/datainlasning/{import_id}/avbryt")
+def inlasning_avbryt(import_id: int):
+    _inlasning(import_id)
+    importmotor.avbryt(import_id)
+    return RedirectResponse("/datainlasning", status_code=303)
+
+
+@app.get("/datainlasning/{import_id}/fel.csv")
+def inlasning_felrapport(import_id: int):
+    imp = _inlasning(import_id)
+    rader = ["Rad;Fastighet;Fel"] + [f"{r['radnr']};{r['data']['fastighet'].replace(';', ',')};{r['meddelande'].replace(';', ',')}"
+                                     for r in importmotor.rader(import_id, "fel", grans=1_000_000)]
+    return StreamingResponse(io.BytesIO(("\ufeff" + "\r\n".join(rader)).encode("utf-8")), media_type="text/csv",
+                             headers={"Content-Disposition": f'attachment; filename="Felrapport-inlasning-{imp["id"]}.csv"'})
 
 
 @app.get("/export.xlsx")

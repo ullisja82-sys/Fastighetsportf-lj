@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block titel %}Inläsning {{ imp.id }}{% endblock %}
+{% block innehall %}
+{% set granskas = imp.status == 'granskas' %}
+{% set saknade = imp.mappning.get('saknade_kolumner', []) %}
+<div class="sidhuvud">
+  <div class="versal"><a href="/datainlasning">Datainläsning</a> · {{ dt.namn }}</div>
+  <h1>{{ imp.filnamn }}</h1>
+  <p class="dampad">Uppladdad {{ imp.uppladdad }}{% if imp.av %} av {{ imp.av }}{% endif %}.
+    {% if imp.status == 'importerad' %}Inläst {{ imp.importerad }}.{% elif imp.status == 'avbruten' %}Avbruten – inget lästes in.{% else %}Inget är sparat ännu.{% endif %}</p>
+</div>
+{% if fel %}<div class="ruta varning">{{ fel }}</div>{% endif %}
+{% if imp.status == 'importerad' %}<div class="ruta ok"><b>Inläsningen är klar.</b> {{ imp.nya|tal(0) }} nya och {{ imp.andrade|tal(0) }} ändrade rader sparades.
+  {{ imp.oforandrade|tal(0) }} var oförändrade{% if imp.fel %} och {{ imp.fel|tal(0) }} rader med fel hoppades över{% endif %}.</div>{% endif %}
+{% if granskas and tidigare %}<div class="ruta info">Samma fil lästes in {{ tidigare.importerad }} (inläsning {{ tidigare.id }}). Rader som redan finns sparas inte en gång till.</div>{% endif %}
+
+{% if granskas %}
+<section class="kort">
+  <h2>1. Kontrollera kolumnerna</h2>
+  {% if saknade %}<div class="ruta varning"><b>Obligatoriska kolumner är inte utpekade: {{ saknade|join(', ') }}.</b> Välj i listan nedan vilken kolumn i filen som är vad, eller ändra rubrikrad.</div>{% endif %}
+  <form method="post" action="/datainlasning/{{ imp.id }}/kolumner">
+    <div class="importval">
+      {% if bladnamn|length > 1 %}<label>Blad <select name="blad">{% for b in bladnamn %}<option {{ 'selected' if b == imp.mappning.blad }}>{{ b }}</option>{% endfor %}</select></label>{% endif %}
+      <label>Rubrikerna står på rad <input type="number" name="rubrikrad" min="1" value="{{ imp.mappning.rubrikrad + 1 }}" style="width:80px"></label>
+    </div>
+    <div class="tabell-rull">
+    <table class="tabell">
+      <tr><th>Kolumn i filen</th><th>Exempel</th><th>Läses in som</th></tr>
+      {% for r in rubriker %}{% if r is not none or exempel[loop.index0] is not none %}
+      <tr><td><b>{{ r if r is not none else '(utan rubrik)' }}</b></td><td class="liten dampad">{{ exempel[loop.index0] if exempel[loop.index0] is not none else '–' }}</td>
+        <td>{% set i = loop.index0|string %}<select name="kol_{{ i }}">
+          <option value="">– läses inte in –</option>
+          {% for k in dt.kolumner %}<option value="{{ k.falt }}" {{ 'selected' if imp.mappning.kolumner.get(i) == k.falt }}>{{ k.rubrik }}{{ ' *' if k.kravs }}</option>{% endfor %}
+        </select></td></tr>
+      {% endif %}{% endfor %}
+    </table>
+    </div>
+    <p class="mini svag">* = obligatorisk. {% for k in dt.kolumner if k.hjalp %}<b>{{ k.rubrik }}:</b> {{ k.hjalp }}. {% endfor %}</p>
+    <div class="formknappar"><button class="knapp sek">Kontrollera igen</button></div>
+  </form>
+</section>
+{% endif %}
+
+{% if granskas and okanda %}
+<section class="kort" id="koppla">
+  <h2>Fastigheter som inte känns igen</h2>
+  <p class="dampad liten">Värdena nedan står i filens fastighetskolumn men motsvarar inget fastighetsnummer eller namn. Välj fastighet, så sparas kopplingen och används även vid nästa inläsning av {{ dt.namn }}.
+    Rader du inte kopplar hoppas över.</p>
+  <form method="post" action="/datainlasning/{{ imp.id }}/koppla">
+    <div class="tabell-rull">
+    <table class="tabell">
+      <tr><th>I filen</th><th class="num">Rader</th><th>Fastighet</th></tr>
+      {% for namn, antal in okanda %}
+      <tr><td>{{ namn }}<input type="hidden" name="externt" value="{{ namn }}"></td><td class="num">{{ antal|tal(0) }}</td>
+        <td><select name="kod"><option value="">– hoppa över –</option>{% for kod, n in fastighetsnamn.items() %}<option value="{{ kod }}">{{ kod }} {{ n }}</option>{% endfor %}</select></td></tr>
+      {% endfor %}
+    </table>
+    </div>
+    <div class="formknappar"><button class="knapp sek">Spara kopplingarna och kontrollera igen</button></div>
+  </form>
+</section>
+{% endif %}
+
+{% if imp.status != 'avbruten' %}
+<section class="kort" id="granskning">
+  <h2>{{ '2. Förhandsgranskning' if granskas else 'Resultat' }}</h2>
+  <div class="statusrad">
+    {% for s, namn in STATUSNAMN.items() %}{% set n = imp[{'ny': 'nya', 'andrad': 'andrade', 'oforandrad': 'oforandrade', 'fel': 'fel'}[s]] or 0 %}
+    <a class="statusruta {{ {'ny': 'gron', 'andrad': 'gul', 'fel': 'rod'}.get(s, '') if n }} {{ 'vald' if s == visa }}" href="/datainlasning/{{ imp.id }}?visa={{ s }}#granskning">
+      <span class="versal">{{ namn }}</span><b>{{ n|tal(0) }}</b>
+      <span class="mini dampad">{{ {'ny': 'läggs till', 'andrad': 'uppdateras', 'oforandrad': 'finns redan', 'fel': 'hoppas över'}[s] if granskas else {'ny': 'lades till', 'andrad': 'uppdaterades', 'oforandrad': 'fanns redan', 'fel': 'hoppades över'}[s] }}</span></a>
+    {% endfor %}
+  </div>
+  {% if rader %}
+  <div class="tabell-rull">
+  <table class="tabell kompakt">
+    <tr><th>Rad</th><th>Fastighet</th>{% for k in lagrade %}<th class="{{ 'num' if k.typ in ('tal', 'heltal', 'andel') }}">{{ k.rubrik }}</th>{% endfor %}{% if visa in ('fel', 'andrad') %}<th>{{ 'Fel' if visa == 'fel' else 'Ändras' }}</th>{% endif %}</tr>
+    {% for r in rader %}
+    <tr><td>{{ r.radnr }}</td><td>{{ r.data.fastighet or '–' }}</td>
+      {% for k in lagrade %}{% set v = r.data.get(k.falt) %}<td class="{{ 'num' if k.typ in ('tal', 'heltal', 'andel') }}">{% if v is none %}<span class="svag">–</span>{% elif k.typ == 'andel' %}{{ (v * 100)|tal(1) }} %{% elif k.typ == 'tal' %}{{ v|tal(2 if v != v|round else 0) }}{% elif k.typ == 'janej' %}{{ 'ja' if v else 'nej' }}{% else %}{{ v }}{% endif %}</td>{% endfor %}
+      {% if visa in ('fel', 'andrad') %}<td class="{{ 'neg' if visa == 'fel' }}">{{ r.meddelande }}</td>{% endif %}</tr>
+    {% endfor %}
+  </table>
+  </div>
+  <p class="mini svag">{{ STATUSNAMN[visa] }}: {% if rader|length >= 200 %}de första 200 raderna visas{% else %}{{ rader|length }} rader{% endif %}. Radnumret är radens nummer i filen.
+    {% if imp.fel %}<a href="/datainlasning/{{ imp.id }}/fel.csv">Hämta felrapporten</a>{% endif %}</p>
+  {% else %}
+  <p class="dampad liten">Inga rader av det här slaget.{% if imp.fel %} <a href="/datainlasning/{{ imp.id }}/fel.csv">Hämta felrapporten</a>{% endif %}</p>
+  {% endif %}
+</section>
+{% endif %}
+
+{% if granskas %}
+<section class="kort">
+  <h2>3. Godkänn</h2>
+  {% if saknade %}<p class="dampad">Peka ut de obligatoriska kolumnerna först.</p>
+  {% elif not (imp.nya or imp.andrade) %}<p class="dampad">Det finns inget nytt eller ändrat att läsa in.</p>
+  {% else %}<p>{{ imp.nya|tal(0) }} nya och {{ imp.andrade|tal(0) }} ändrade rader sparas.{% if imp.fel %} <b>{{ imp.fel|tal(0) }} rader med fel hoppas över.</b>{% endif %}</p>{% endif %}
+  <div class="formknappar" style="display:flex;gap:10px">
+    {% if not saknade and (imp.nya or imp.andrade) %}<form method="post" action="/datainlasning/{{ imp.id }}/importera"><button class="knapp">Godkänn och läs in</button></form>{% endif %}
+    <form method="post" action="/datainlasning/{{ imp.id }}/avbryt"><button class="knapp sek">Avbryt inläsningen</button></form>
+  </div>
+</section>
+{% endif %}
+{% endblock %}

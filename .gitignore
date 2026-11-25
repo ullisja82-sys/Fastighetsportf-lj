@@ -4,3 +4,5 @@ __pycache__/
 *.xls
 app/portfolj/investeringsplan_data.py
 !.env.example
+Kalkyler/*
+!Kalkyler/.gitkeep

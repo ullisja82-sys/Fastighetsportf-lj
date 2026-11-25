@@ -224,8 +224,8 @@ async def krav_inloggning(request: Request, call_next):
         return _sida("Du väntar på behörighet",
                      f"Du är inloggad som {html.escape(anv['namn'] or anv['epost'] or '')}, men har ännu inte fått behörighet "
                      "till Fastighetsportföljen. En administratör behöver ge dig behörighet.", 403)
-    if request.url.path.startswith("/anvandare") and anv["roll"] != "admin":
-        return _sida("Ingen behörighet", "Bara administratörer kan dela ut behörigheter.", 403)
+    if request.url.path.startswith(("/anvandare", "/datainlasning")) and anv["roll"] != "admin":
+        return _sida("Ingen behörighet", "Sidan är bara för administratörer.", 403)
     if request.method != "GET" and anv["roll"] not in ("redigerare", "admin"):
         return _sida("Ingen behörighet", "Du har läsbehörighet och kan inte ändra något. Be en administratör om "
                      "behörigheten Redigerare.", 403)

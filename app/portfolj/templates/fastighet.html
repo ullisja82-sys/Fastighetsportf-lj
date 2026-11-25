@@ -6,7 +6,62 @@
   <h1>{{ r.kod }} {{ r.namn }}</h1>
   <p>{{ pill(r.status) }} {{ invchip(r.kod) }}{{ projektchip(r.kod) }}{% for f in r.flaggor %}<span class="chip varning">{{ f }}</span>{% endfor %}</p>
 </div>
+{% macro varde(f) -%}
+{% if f.varde is none %}–{% elif f.enhet == '%' %}{{ (f.varde * 100)|tal(1) }}{% elif f.enhet == 'index' or (f.varde != f.varde|round and f.varde|abs < 100) %}{{ f.varde|tal(1) }}{% else %}{{ f.varde|tal(0) }}{% endif %}
+{%- endmacro %}
+{% macro faltruta(f) -%}
+<div class="falt {{ 'tomt' if f.varde is none }}">
+  <span class="versal">{{ f.namn }}</span>
+  <b>{{ varde(f) }}{% if f.varde is not none %} <small>{{ f.enhet }}</small>{% endif %}</b>
+  <span class="mini svag">{% if not f.ansluten %}Data saknas{% elif f.varde is none %}Data saknas för {{ ar }}{% elif f.fore is not none %}{{ ar - 1 }}: {{ varde({'varde': f.fore, 'enhet': f.enhet}) }} {{ f.enhet }}{% else %}Ingen uppgift för {{ ar - 1 }}{% endif %}</span>
+</div>
+{%- endmacro %}
+{% macro kallrad(g) -%}
+<p class="mini svag">{% if g.kallor %}Källa: {{ g.kallor|join(', ') }}{% if 'Fastighetsanalys' in g.kallor %} ({{ underlagsfil }}){% endif %}.{% if g.med_varde < g.falt|length %} {{ g.falt|length - g.med_varde }} av {{ g.falt|length }} fält saknar data.{% endif %}{% else %}Data saknas för {{ ar }}.{% endif %}</p>
+{%- endmacro %}
+{% macro faltgrupper(namn) -%}
+{% for g in flikfalt[namn] %}
+<section class="kort">
+  <h2>{{ g.rubrik }}{% if not g.med_varde %} <span class="chip">Data saknas</span>{% endif %}</h2>
+  <div class="faltrad">{% for f in g.falt %}{{ faltruta(f) }}{% endfor %}</div>
+  {{ kallrad(g) }}
+</section>
+{% endfor %}
+{%- endmacro %}
+{% macro tomtabell(namn) -%}
+{% set t = flikinnehall.get(namn) %}
+{% if t and t.rader %}
+<section class="kort">
+  <h2>{{ fliktabeller[namn][0] }}{{ ' ' ~ ar if namn != 'underhall' }}</h2>
+  <div class="tabell-rull">
+  <table class="tabell">
+    <tr>{% for k in t.kolumner %}<th class="{{ 'num' if loop.index0 in t.num }}">{{ k }}</th>{% endfor %}</tr>
+    {% for rad in t.rader[:300] %}<tr>{% for c in rad %}<td class="{{ 'num' if loop.index0 in t.num }}">{{ c }}</td>{% endfor %}</tr>
+    {% endfor %}
+  </table>
+  </div>
+  <p class="mini svag">{% if t.rader|length > 300 %}De första 300 av {{ t.rader|length }} raderna visas. {% endif %}Källa: {{ flikkallor.get(namn, 'Datainläsning') }}.</p>
+</section>
+{% elif namn in fliktabeller %}
+<section class="kort">
+  <h2>{{ fliktabeller[namn][0] }} <span class="chip">Data saknas</span></h2>
+  <div class="tabell-rull">
+  <table class="tabell">
+    <tr>{% for k in fliktabeller[namn][1] %}<th>{{ k }}</th>{% endfor %}</tr>
+    <tr><td colspan="{{ fliktabeller[namn][1]|length }}" class="dampad liten">{% if flikkallor.get(namn) %}Inget är inläst för {{ ar }}.{% else %}Inget underlag är inläst.{% endif %}</td></tr>
+  </table>
+  </div>
+</section>
+{% endif %}
+{%- endmacro %}
+{% if flik != 'alla' %}
+<nav class="flikar" aria-label="Fastighetens flikar">
+  {% for nyckel, namn in flikar %}<a href="/fastighet/{{ r.kod }}?ar={{ ar }}{% if nyckel != 'oversikt' %}&amp;flik={{ nyckel }}{% endif %}" class="{{ 'aktiv' if flik == nyckel }}" {% if flik == nyckel %}aria-current="page"{% endif %}>{{ namn }}</a>{% endfor %}
+</nav>
+{% if not flikar_for_alla %}<p class="mini svag forhandsvisning"><span class="demo">Förhandsvisning</span> Flikarna syns bara för administratörer. De släpps till alla under <a href="/anvandare#flikar">Användare och behörigheter</a>.</p>{% endif %}
+{% endif %}
 {% if sparat %}<div class="ruta ok">Ändringen är sparad.</div>{% endif %}
+{% if flik in ('alla', 'underhall') %}
 {% for p in inv_per_fastighet.get(r.kod, []) %}
 <div class="invband {{ p.typ }}">
   <span class="invmarke {{ p.typ }}"><b>{{ p.typnamn[0] }}</b></span>
@@ -20,7 +75,9 @@
   </dl>
 </div>
 {% endfor %}
+{% endif %}
 
+{% if flik in ('alla', 'oversikt') %}
 <div class="nyckeltal">
   <div><span class="versal">Byggår</span><b>{{ r.byggar or '–' }}</b><span class="mini dampad">{% if r.alder is not none %}{{ r.alder }} år inkl. {{ inst.referensar }}{% else %}ålder okänd{% endif %}</span></div>
   <div><span class="versal">Åldersklass</span><b class="liten-b">{{ r.klassnamn }}</b></div>
@@ -29,7 +86,60 @@
   <div><span class="versal">Bokfört värde</span><b>{{ mnkr(r.bokfort) }} <small>mnkr</small></b></div>
   <div><span class="versal">Marknadsvärde</span><b>{{ mnkr(r.marknad) }} <small>mnkr</small></b></div>
 </div>
+{% endif %}
+{% if flik == 'oversikt' %}
+<div class="halsokort">
+  {% for g in flikfalt.oversikt %}
+  <section class="kort">
+    <h2><a href="/fastighet/{{ r.kod }}?ar={{ ar }}&amp;flik={{ g.flik }}">{{ g.rubrik }}</a>{% if not g.med_varde %} <span class="chip">Data saknas</span>{% endif %}</h2>
+    <div class="faltrad">{% for f in g.falt %}{{ faltruta(f) }}{% endfor %}</div>
+    {{ kallrad(g) }}
+  </section>
+  {% endfor %}
+</div>
+<section class="kort">
+  <h2>Signaler <span class="chip">Inte uppsatt</span></h2>
+  <p class="dampad liten">Inga signalregler är uppsatta ännu. Här visas avvikelser som behöver uppmärksammas när underlagen är inlästa.</p>
+</section>
+{% endif %}
+{% if flik == 'ekonomi' %}{{ faltgrupper('ekonomi') }}{{ tomtabell('ekonomi') }}{% endif %}
+{% if flik == 'hyra' %}{{ faltgrupper('hyra') }}{{ tomtabell('hyra') }}{% endif %}
+{% if flik == 'energi' %}{{ faltgrupper('energi') }}
+{% for j in energijamforelse %}
+<section class="kort" id="jamforelse-{{ j.grupp }}">
+  <h2>{{ j.namn }} jämfört med liknande fastigheter {{ ar }}</h2>
+  {% if j.antal %}
+  <div class="faltrad">
+    <div class="falt"><span class="versal">Fastigheten</span><b>{{ j.egen|tal(1) }} <small>{{ j.enhet }}/kvm</small></b><span class="mini svag">plats {{ j.plats }} av {{ j.rader|length }}, lägst förbrukning först</span></div>
+    <div class="falt"><span class="versal">Median, liknande</span><b>{{ j.median|tal(1) }} <small>{{ j.enhet }}/kvm</small></b><span class="mini svag">{{ j.antal }} fastigheter</span></div>
+    <div class="falt"><span class="versal">Mot medianen</span><b class="{{ 'neg' if j.mot_median > 0.1 else 'pos' if j.mot_median < -0.1 }}">{{ '+' if j.mot_median > 0 }}{{ (j.mot_median * 100)|tal(0) }} <small>%</small></b>
+      <span class="mini svag">{{ 'högre' if j.mot_median > 0 else 'lägre' }} förbrukning per kvm</span></div>
+  </div>
+  <div class="tabell-rull">
+  <table class="tabell jmftabell">
+    <tr><th>Fastighet</th><th class="num">Byggår</th><th class="num">Yta, kvm</th><th class="num">{{ j.namn }}, {{ j.enhet }}</th><th class="num">{{ j.enhet }}/kvm</th><th></th></tr>
+    {% for x in j.rader %}
+    <tr class="{{ 'egen' if x.egen }}"><td>{% if x.egen %}<b>{{ x.kod }} {{ x.namn }}</b>{% else %}<a href="/fastighet/{{ x.kod }}?ar={{ ar }}&amp;flik=energi">{{ x.kod }} {{ x.namn }}</a>{% endif %}</td>
+      <td class="num">{{ x.byggar }}</td><td class="num">{{ x.yta|tal(0) }}</td><td class="num">{{ x.mangd|tal(0) }}</td><td class="num">{{ x.per_kvm|tal(1) }}</td>
+      <td class="jmfstapel"><i style="width:{{ (x.per_kvm / j.storst * 100)|round(1) if j.storst else 0 }}%"></i></td></tr>
+    {% endfor %}
+  </table>
+  </div>
+  {% else %}
+  <p class="dampad liten">Det finns ingen liknande fastighet med inläst förbrukning av {{ j.namn|lower }} för {{ ar }}.</p>
+  {% endif %}
+  <p class="mini svag">Liknande = byggår {{ r.byggar - JMF_AR }}–{{ r.byggar + JMF_AR }} (fastighetens byggår ± {{ JMF_AR }} år) och yta {{ (r.yta * JMF_YTA[0])|tal(0) }}–{{ (r.yta * JMF_YTA[1])|tal(0) }} kvm (hälften till dubbla ytan, BOA + LOA).
+    Förbrukningen är summan av det som är inläst för {{ ar }}.{% if j.utan_data %} {{ j.utan_data }} liknande fastigheter saknar inläst förbrukning och är inte med.{% endif %}</p>
+</section>
+{% endfor %}
+{% if not energijamforelse and flikkallor.get('energi') and (not r.byggar or not r.yta) %}
+<section class="kort"><h2>Jämförelse med liknande fastigheter</h2>
+  <p class="dampad liten">Jämförelsen behöver fastighetens {{ 'byggår' if not r.byggar }}{{ ' och ' if not r.byggar and not r.yta }}{{ 'yta' if not r.yta }}, som saknas i underlaget.{% if not r.byggar %} Byggår kan fyllas i under Komplettera på Översikt.{% endif %}</p></section>
+{% endif %}
+{{ tomtabell('energi') }}{% endif %}
+{% if flik == 'drift' %}{{ faltgrupper('drift') }}{{ tomtabell('drift') }}{% endif %}
 
+{% if flik in ('alla', 'ekonomi') %}
 <section class="kort">
   <h2>Utfall mot krav {{ ar }}</h2>
   <div class="tabell-rull">
@@ -45,8 +155,9 @@
   </div>
   <p class="mini svag">Belopp i tkr, gap i procentenheter. {% if r.klass is none %}Fastigheten saknar byggår och har därför inga krav. Fyll i byggår nedan.{% endif %}</p>
 </section>
+{% endif %}
 
-{% if projekt.get(r.kod) %}
+{% if flik in ('alla', 'underhall') and projekt.get(r.kod) %}
 <section class="kort" id="projekt">
   <h2>Byggprojekt</h2>
   <div class="tabell-rull">
@@ -63,6 +174,13 @@
 </section>
 
 {% endif %}
+{% if flik == 'underhall' %}
+{% if not projekt.get(r.kod) and not inv_per_fastighet.get(r.kod) %}<section class="kort"><h2>Projekt och investeringar</h2>
+  <p class="dampad liten">Fastigheten har inga pågående eller planerade projekt i projektlistan och finns inte i investeringsportföljen.</p></section>{% endif %}
+{{ faltgrupper('underhall') }}{{ tomtabell('underhall') }}
+{% endif %}
+{% if flik == 'kund' %}{{ faltgrupper('kund') }}{% endif %}
+{% if flik in ('alla', 'kund') %}
 <section class="kort">
   <h2>Kundnöjdhet {{ ar }}{% if kund_fiktiv %} <span class="demo">Fiktiva siffror</span>{% endif %}</h2>
   {% if kund_fiktiv %}<div class="ruta varning"><b>OBS! Siffrorna nedan är påhittade.</b> De visar bara hur diagrammet kommer att se ut och säger ingenting om fastigheten, HFAB eller riket.
@@ -109,7 +227,9 @@
   <p class="dampad liten">Fastigheten har ingen mätning i kundundersökningen för {{ ar }} eller {{ ar - 1 }}.</p>
   {% endif %}
 </section>
+{% endif %}
 
+{% if flik in ('alla', 'ekonomi') %}
 <section class="kort">
   <h2>År för år</h2>
   <div class="tabell-rull">
@@ -125,7 +245,9 @@
   </div>
   <p class="mini svag">Belopp i tkr, driftsnetto/kvm i kr. {% if r.lanat %}Värden och ytor som saknas i ett års underlag är hämtade från närmaste år.{% endif %}</p>
 </section>
+{% endif %}
 
+{% if flik in ('alla', 'oversikt') %}
 <section class="kort">
   <h2>Komplettera</h2>
   <form method="post" class="formular">
@@ -141,4 +263,5 @@
     <div class="formknappar"><button class="knapp">Spara</button>{% if just and just.andrad %} <span class="mini dampad">Senast ändrad {{ just.andrad }}</span>{% endif %}</div>
   </form>
 </section>
+{% endif %}
 {% endblock %}

@@ -31,6 +31,28 @@ Appregistreringen: plattform *Webb*, omdirigerings-URI `https://fastighetsportfo
 utloggnings-URL `https://fastighetsportfolj.hfab.se/utloggad`, delegerade behörigheter `openid`, `profile`, `email`.
 Sessionen gäller 10 timmar (`SESSION_TIMMAR`).
 
+## Flikarna på fastigheten
+
+Fastighetssidan har flikarna Översikt, Ekonomi, Hyra, Energi & media, Drift, Underhåll & investering och Kund & uthyrning.
+Vilka fält varje flik visar står i `app/portfolj/flikar.py`; fält utan datakälla visas tomma med texten *Data saknas*.
+Flikarna är en förhandsvisning som bara administratörer ser, tills en administratör väljer *Visa för alla* under
+*Användare och behörigheter*. Övriga ser fastighetssidan som förut.
+
+## Datainläsning
+
+Under *Datainläsning* (bara administratörer) läses Excel och CSV in till flikarna: Energi & media, Ekonomi, Hyra,
+Drift och felanmälningar, Underhåll och åtgärder samt Kund & uthyrning. Flödet är: välj datatyp och fil, kontrollera
+kolumnerna, förhandsgranska nya, ändrade, oförändrade och felaktiga rader, godkänn. Inget sparas före godkännandet.
+
+- Kolumner, alternativa rubriknamn och vad som gör en rad unik står i `app/portfolj/datatyper.py`. En tom mall hämtas på sidan.
+- `app/portfolj/importmotor.py` tolkar (svenska decimaltal, perioder, datum), validerar och skriver i en transaktion.
+  En tom cell skriver inte över ett värde, inget tas bort för att det saknas i filen, och samma fil två gånger ger inga dubbletter.
+- Fastigheten anges med nummer eller namn. Värden som inte känns igen (t.ex. energisystemets eget ID) kopplas till en
+  fastighet i förhandsgranskningen; kopplingen sparas i tabellen `externref` och används nästa gång.
+- Nyckeltalen på flikarna räknas i `app/portfolj/omraden.py` ur de inlästa raderna (tabellerna `d_energi`, `d_ekonomi` …).
+  Belopp i filerna är kronor. Varje inläsning finns kvar i historiken, och filen sparas i volymen `portfoljdata`.
+- Tester: `python -m unittest discover -s tests` i mappen `app`.
+
 ## Underlag
 
 Excel-filerna i `Underlag/` läses vid start (`app/portfolj/importera.py`). Varje fil är ett år och året

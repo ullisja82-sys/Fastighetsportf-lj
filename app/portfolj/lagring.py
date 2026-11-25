@@ -51,6 +51,19 @@ def aterstall_installningar() -> None:
         con.execute("DELETE FROM installning WHERE nyckel = 'krav'")
 
 
+def flikar_for_alla() -> bool:
+    """Flikarna på fastigheten visas bara för administratörer tills en administratör släpper dem till alla."""
+    with _anslut() as con:
+        rad = con.execute("SELECT varde FROM installning WHERE nyckel = 'flikar'").fetchone()
+    return bool(rad) and rad["varde"] == "alla"
+
+
+def satt_flikar_for_alla(alla: bool) -> None:
+    with _anslut() as con:
+        con.execute("INSERT INTO installning (nyckel, varde) VALUES ('flikar', ?) ON CONFLICT(nyckel) DO UPDATE SET varde = excluded.varde",
+                    ("alla" if alla else "admin",))
+
+
 def justeringar() -> dict:
     with _anslut() as con:
         return {r["kod"]: dict(r) for r in con.execute("SELECT * FROM justering")}
